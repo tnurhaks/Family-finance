@@ -499,3 +499,35 @@ h1, h2, h3, h4 { letter-spacing: -.035em; }
 .toggle-row input { accent-color:#f2643c !important; }
 .balance-hero-foot, .balance-hero-foot span { color:#ffe9dc !important; }
 .balance-hero-top span { color:#fff3ea !important; }
+
+/* ---------- Dashboard per kategori ---------- */
+.breakdown { display:grid; gap:16px; }
+.breakdown-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.breakdown-toolbar small { color:#a3919b; font-size:11px; }
+.breakdown-group { display:grid; gap:2px; border-top:1px solid #f3e9e5; padding-top:14px; }
+.breakdown-group-head { display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:6px; flex-wrap:wrap; }
+.breakdown-group-head em { font-style:normal; color:#a3919b; font-size:11px; }
+.breakdown-total { margin-left:auto; font-weight:800; color:#3a1846; }
+.group-dot { width:10px; height:10px; border-radius:50%; }
+.g-kebutuhan { background:linear-gradient(90deg,#ffb04a,#f2643c); }
+.g-keinginan { background:linear-gradient(90deg,#f2643c,#e0457b); }
+.g-tabungan { background:linear-gradient(90deg,#b07cc6,#7b3fa0); }
+.breakdown-row { display:flex; gap:12px; align-items:flex-start; width:100%; text-align:left; background:transparent; border:0; padding:10px 6px; border-radius:14px; color:inherit; }
+.breakdown-row:hover { background:#fbf5f2; }
+.breakdown-icon { width:38px; height:38px; border-radius:12px; background:#fbf1ec; display:grid; place-items:center; font-size:17px; flex-shrink:0; }
+.breakdown-main { flex:1; display:grid; gap:6px; min-width:0; }
+.breakdown-line { display:flex; justify-content:space-between; gap:10px; font-size:12px; }
+.breakdown-line strong { color:#3a2433; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.breakdown-line span { font-weight:750; color:#3a1846; white-space:nowrap; }
+.breakdown-bar { height:7px; background:#f5ebe7; border-radius:99px; overflow:hidden; }
+.breakdown-bar i { display:block; height:100%; border-radius:99px; }
+.breakdown-meta { display:flex; align-items:center; gap:9px; font-size:10px; color:#a3919b; }
+.delta { font-weight:800; font-size:10px; padding:2px 7px; border-radius:99px; white-space:nowrap; }
+.delta.up { background:#fdeaf0; color:#c93a6e; }
+.delta.down { background:#fff1e0; color:#c96a1f; }
+.delta.flat { background:#f3eef1; color:#8f7b87; }
+.spark { margin-left:auto; display:flex; align-items:flex-end; gap:2px; height:18px; width:46px; }
+.spark i { flex:1; background:#ecd9d3; border-radius:2px; }
+.spark i.now { background:#f2643c; }
+.breakdown-note { margin-top:2px; }
+@media (max-width:760px) { .breakdown-toolbar .segmented { width:100%; } .breakdown-toolbar .segmented button { flex:1; } }

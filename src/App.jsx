@@ -135,7 +135,40 @@ function CategoryGraph({data,expense,hidden}) {
   return <section className="surface panel-categories"><div className="panel-heading"><div><span className="eyebrow">PENGELUARAN</span><h3>Ke mana uang pergi?</h3></div></div>{!data.length?<EmptyState icon={BarChart3} title="Belum ada pengeluaran" description="Kategori akan muncul setelah ada transaksi pengeluaran."/>:hidden?<div className="masked-graph"><EyeOff size={24}/><span>Rincian disembunyikan</span></div>:<><div className="donut-area"><ResponsiveContainer width="100%" height={204}><PieChart><Pie data={data} dataKey="value" nameKey="name" innerRadius={66} outerRadius={89} paddingAngle={3} stroke="none">{data.map((_,i)=><Cell key={i} fill={PALETTE[i%PALETTE.length]}/>)}</Pie><Tooltip formatter={number}/></PieChart></ResponsiveContainer><div className="donut-center"><span>Total bulan ini</span><strong>{compact(expense)}</strong></div></div><div className="category-legend">{data.slice(0,4).map((d,i)=><div key={d.name}><span><i className="dot" style={{background:PALETTE[i%PALETTE.length]}}/>{d.name}</span><strong>{number(d.value)}</strong></div>)}</div></>}</section>;
 }
 
-function Dashboard({user,accounts,allAccounts,transactions,scope,month,hidden,setHidden,onPage,onNew,onEdit,onDelete,pendingCount,onReview}) {
+
+// ---------- Dashboard per kategori ----------
+const totalsFromTx=txs=>{const map={};txs.forEach(t=>{const k=[t.occurred_on.slice(0,7),t.kind,t.category,t.subcategory||''].join('|');map[k]=(map[k]||0)+Number(t.amount)});return Object.entries(map).map(([k,total])=>{const [month,kind,category,subcategory]=k.split('|');return {month,kind,category,subcategory,total}})};
+function CategoryBreakdown({transactions,ownedIds,month,hidden,fetchTotals,dataVersion,onOpen}){
+  const [source,setSource]=useState('view'),[familyRows,setFamilyRows]=useState(null);
+  useEffect(()=>{if(source!=='family')return;let alive=true;setFamilyRows(null);const y=Number(month.slice(0,4));const years=Number(month.slice(5,7))<6?[y-1,y]:[y];Promise.all(years.map(fetchTotals)).then(r=>{if(alive)setFamilyRows(r.flat())}).catch(()=>{if(alive)setFamilyRows([])});return()=>{alive=false}},[source,month,fetchTotals,dataVersion]);
+  const rows=useMemo(()=>source==='view'?totalsFromTx(transactions.filter(t=>t.kind==='expense'&&ownedIds.has(t.account_id))):(familyRows||[]).filter(r=>r.kind==='expense'),[source,transactions,ownedIds,familyRows]);
+  const months=Array.from({length:6},(_,i)=>shiftMonth(month,i-5)),prev=shiftMonth(month,-1);
+  const groups=EXPENSE_GROUPS.map(g=>{
+    const subs={};rows.filter(r=>r.category===g&&months.includes(r.month)).forEach(r=>{const k=r.subcategory||'(tanpa sub)';subs[k]=subs[k]||{name:k,trend:months.map(()=>0)};subs[k].trend[months.indexOf(r.month)]+=Number(r.total)});
+    const items=Object.values(subs).map(x=>({...x,cur:x.trend[5],prev:x.trend[4],avg:sum(x.trend.slice(0,5))/5})).sort((a,b)=>b.cur-a.cur||b.avg-a.avg);
+    return {name:g,items,total:sum(items,i=>i.cur),prevTotal:sum(items,i=>i.prev)};
+  });
+  const spend=sum(groups.filter(g=>g.name!=='Tabungan'),g=>g.total);
+  const loading=source==='family'&&familyRows===null;
+  const money=v=>hidden?'•••':number(v);
+  const delta=(cur,old)=>{if(!old&&!cur)return null;if(!old)return <span className="delta up">baru</span>;const p=(cur-old)/old;if(Math.abs(p)<0.005)return <span className="delta flat">sama</span>;return <span className={`delta ${p>0?'up':'down'}`}>{p>0?'▲':'▼'} {Math.abs(Math.round(p*100))}%</span>};
+  return <section className="surface breakdown"><div className="panel-heading"><div><span className="eyebrow">ANALISIS · {monthLabel(month).toUpperCase()}</span><h3>Pengeluaran per kategori</h3></div></div>
+    <div className="breakdown-toolbar"><Segmented label="Sumber data" value={source} onChange={setSource} options={[{value:'view',label:'Rekening yang tampil'},{value:'family',label:'Keluarga'}]}/><small>Dibanding {monthLabel(prev)} · tren 6 bulan</small></div>
+    {loading?<div className="masked-graph"><RefreshCw size={22} className="spinning"/><span>Memuat data keluarga...</span></div>:
+    groups.every(g=>!g.items.length)?<EmptyState icon={BarChart3} title="Belum ada pengeluaran" description="Rincian kategori muncul setelah ada transaksi pengeluaran dalam 6 bulan terakhir."/>:
+    groups.filter(g=>g.items.length).map(g=>{const max=Math.max(1,...g.items.map(i=>i.cur));return <div className="breakdown-group" key={g.name}>
+      <div className="breakdown-group-head"><span className={`group-dot g-${g.name.toLowerCase()}`}/><strong>{g.name}</strong>{g.name!=='Tabungan'&&spend>0&&<em>{Math.round(g.total/spend*100)}% pengeluaran</em>}<span className="breakdown-total">{money(g.total)}</span>{delta(g.total,g.prevTotal)}</div>
+      {g.items.map(it=>{const tmax=Math.max(1,...it.trend);return <button className="breakdown-row" key={it.name} onClick={()=>onOpen(it.name)}>
+        <span className="breakdown-icon" aria-hidden="true">{iconFor({kind:'expense',category:g.name,subcategory:it.name})}</span>
+        <span className="breakdown-main"><span className="breakdown-line"><strong>{it.name}</strong><span>{money(it.cur)}</span></span>
+          <span className="breakdown-bar"><i className={`g-${g.name.toLowerCase()}`} style={{width:`${it.cur/max*100}%`}}/></span>
+          <span className="breakdown-meta">{delta(it.cur,it.prev)}<span>rata-rata {hidden?'•••':compact(it.avg)}/bln</span><span className="spark" aria-label="Tren 6 bulan">{it.trend.map((v,i)=><i key={i} className={i===5?'now':''} style={{height:`${Math.max(8,v/tmax*100)}%`}}/>)}</span></span></span></button>})}
+    </div>})}
+    {source==='family'&&<p className="tiny-note breakdown-note">Mode Keluarga memakai total rekening bersama, semua rekening pribadimu, dan total pribadi pasangan yang membagikannya.</p>}
+  </section>;
+}
+
+function Dashboard({user,accounts,allAccounts,transactions,scope,month,hidden,setHidden,onPage,onNew,onEdit,onDelete,pendingCount,onReview,fetchTotals,dataVersion,onOpenCategory}) {
   const ids=useMemo(()=>new Set(accounts.map(x=>x.id)),[accounts]);
   // Transaksi milik rekening yang sedang ditampilkan (sumber) — dipakai untuk pemasukan/pengeluaran.
   const ownedTx=useMemo(()=>transactions.filter(t=>ids.has(t.account_id)),[transactions,ids]);
@@ -152,11 +185,13 @@ function Dashboard({user,accounts,allAccounts,transactions,scope,month,hidden,se
     <div className="summary-grid four"><div className="summary-card"><div className="summary-icon income-icon"><ArrowDownLeft size={20}/></div><div><span>Pemasukan</span><strong>{formatValue(income,hidden)}</strong><small><TrendingUp size={13}/> Tanpa transfer & jual aset</small></div></div><div className="summary-card"><div className="summary-icon expense-icon"><ArrowUpRight size={20}/></div><div><span>Pengeluaran</span><strong>{formatValue(expense,hidden)}</strong><small><TrendingDown size={13}/> Kebutuhan + Keinginan</small></div></div><div className="summary-card"><div className="summary-icon saving-icon"><PiggyBank size={20}/></div><div><span>Ditabung</span><strong>{formatValue(saving,hidden)}</strong><small><PiggyBank size={13}/> Kategori Tabungan</small></div></div><div className="summary-card"><div className="summary-icon net-icon"><BarChart3 size={20}/></div><div><span>Sisa</span><strong>{formatValue(income-expense-saving,hidden)}</strong><small>Masuk − keluar − tabung</small></div></div></div>
     {accounts.length===0&&<div className="start-card"><div><span className="eyebrow">MULAI DI SINI</span><h3>Belum ada rekening.</h3><p>Buat rekening bersama atau pribadi, lalu catat transaksi pertamamu.</p></div><button className="btn btn-primary" onClick={()=>onNew('account')}><Plus size={17}/> Tambah rekening</button></div>}
     <div className="insights-grid"><InsightGraph data={graph} hidden={hidden}/><CategoryGraph data={categoryData} expense={expense} hidden={hidden}/></div>
+    <CategoryBreakdown transactions={transactions} ownedIds={ids} month={month} hidden={hidden} fetchTotals={fetchTotals} dataVersion={dataVersion} onOpen={onOpenCategory}/>
     <section className="surface recent-section"><div className="panel-heading"><div><span className="eyebrow">AKTIVITAS</span><h3>Transaksi terbaru</h3></div><button className="link-button view-all" onClick={()=>onPage('transactions')}>Lihat semua <ArrowRight size={16}/></button></div><TransactionList items={transactions.filter(t=>(ids.has(t.account_id)||ids.has(t.to_account_id))&&t.occurred_on.startsWith(month)).slice(0,5)} accounts={allAccounts||accounts} userId={user.id} hidden={hidden} onEdit={onEdit} onDelete={onDelete} emptyAction={accounts.length?()=>onNew('transaction'):undefined}/></section>
   </div>;
 }
-function TransactionsPage({items,accounts,userId,hidden,onEdit,onDelete,onNew,inbox,onApproveInbox,onRejectInbox,tab,setTab}){
-  const [search,setSearch]=useState(''),[kind,setKind]=useState('all');
+function TransactionsPage({items,accounts,userId,hidden,onEdit,onDelete,onNew,inbox,onApproveInbox,onRejectInbox,tab,setTab,preset}){
+  const [search,setSearch]=useState(preset?.text||''),[kind,setKind]=useState('all');
+  useEffect(()=>{if(preset)setSearch(preset.text)},[preset]);
   const byId=useMemo(()=>Object.fromEntries(accounts.map(a=>[a.id,a])),[accounts]);
   const shown=useMemo(()=>items.filter(t=>(kind==='all'||t.kind===kind)&&(`${t.category} ${t.subcategory||''} ${t.note||''} ${byId[t.account_id]?.name||''}`).toLocaleLowerCase('id-ID').includes(search.toLocaleLowerCase('id-ID'))),[items,kind,search,byId]);
   return <section className="surface transaction-page"><div className="panel-heading"><div><span className="eyebrow">RIWAYAT</span><h3>{tab==='review'?'Perlu review':'Semua transaksi'} <span className="count-pill">{tab==='review'?inbox.length:shown.length}</span></h3></div><button className="btn btn-primary desktop-new" onClick={()=>onNew('transaction')} disabled={!accounts.length}><Plus size={16}/> Transaksi</button></div>
@@ -236,7 +271,7 @@ function FamilyPage({household,user,members,me,isDemo,onCopy,onSignOut,onExitDem
 }
 
 function FinanceShell({user,household,accounts,transactions,budgets,inbox,members,me,fetchTotals,dataVersion,gmail,onSaveAccount,onSaveTransaction,onDeleteAccount,onDeleteTransaction,onSaveBudget,onDeleteBudget,onRejectInbox,onToggleShare,onRefresh,onSignOut,isDemo=false,sync='online',busy=false}) {
-  const [page,setPage]=useState('dashboard'),[txTab,setTxTab]=useState('history'),[scope,setScope]=useState('all'),[month,setMonth]=useState(monthNow()),[hidden,setHidden]=useState(false),[modal,setModal]=useState(null),[toast,setToast]=useState(null),[isOnline,setIsOnline]=useState(typeof navigator!=='undefined'?navigator.onLine:true);
+  const [page,setPage]=useState('dashboard'),[txTab,setTxTab]=useState('history'),[txPreset,setTxPreset]=useState(null),[scope,setScope]=useState('all'),[month,setMonth]=useState(monthNow()),[hidden,setHidden]=useState(false),[modal,setModal]=useState(null),[toast,setToast]=useState(null),[isOnline,setIsOnline]=useState(typeof navigator!=='undefined'?navigator.onLine:true);
   useEffect(()=>{const yes=()=>setIsOnline(true),no=()=>setIsOnline(false);window.addEventListener('online',yes);window.addEventListener('offline',no);return()=>{window.removeEventListener('online',yes);window.removeEventListener('offline',no)}},[]);
   const filteredAccounts=useMemo(()=>accounts.filter(a=>scope==='all'||a.visibility===scope),[accounts,scope]);
   const ids=useMemo(()=>new Set(filteredAccounts.map(a=>a.id)),[filteredAccounts]);
@@ -267,8 +302,8 @@ function FinanceShell({user,household,accounts,transactions,budgets,inbox,member
       <div className="mobile-page-title"><span>{current.label}</span><strong>{household.name}</strong></div>
       <main className="main-content" id="main-content">
         {page!=='family'&&<div className="toolbar">{page!=='budget'?<div className="scope-control"><span className="toolbar-caption">Tampilkan</span><Segmented label="Cakupan rekening" value={scope} onChange={setScope} options={[{value:'all',label:'Semua'},{value:'shared',label:'Bersama'},{value:'private',label:'Pribadi'}]}/></div>:<div className="scope-control"><span className="toolbar-caption">Budget keluarga</span></div>}{page!=='accounts'&&<div className="period-control"><CalendarDays size={18}/><input type="month" aria-label="Pilih bulan" value={month} onChange={e=>{if(/^\d{4}-\d{2}$/.test(e.target.value))setMonth(e.target.value)}}/></div>}</div>}
-        {page==='dashboard'&&<Dashboard user={user} accounts={filteredAccounts} allAccounts={accounts} transactions={transactions} scope={scope} month={month} hidden={hidden} setHidden={setHidden} onPage={setPage} onNew={newItem} onEdit={t=>setModal({type:'transaction',item:t})} onDelete={deleteTx} pendingCount={inbox.length} onReview={goReview}/>}
-        {page==='transactions'&&<TransactionsPage items={filteredTransactions} accounts={accounts} userId={user.id} hidden={hidden} onEdit={t=>setModal({type:'transaction',item:t})} onDelete={deleteTx} onNew={newItem} inbox={inbox} onApproveInbox={it=>setModal({type:'transaction',draft:it})} onRejectInbox={rejectInbox} tab={txTab} setTab={setTxTab}/>}
+        {page==='dashboard'&&<Dashboard user={user} accounts={filteredAccounts} allAccounts={accounts} transactions={transactions} scope={scope} month={month} hidden={hidden} setHidden={setHidden} onPage={setPage} onNew={newItem} onEdit={t=>setModal({type:'transaction',item:t})} onDelete={deleteTx} pendingCount={inbox.length} onReview={goReview} fetchTotals={fetchTotals} dataVersion={dataVersion} onOpenCategory={name=>{setTxPreset({text:name});setTxTab('history');setPage('transactions')}}/>}
+        {page==='transactions'&&<TransactionsPage items={filteredTransactions} accounts={accounts} userId={user.id} hidden={hidden} onEdit={t=>setModal({type:'transaction',item:t})} onDelete={deleteTx} onNew={newItem} inbox={inbox} onApproveInbox={it=>setModal({type:'transaction',draft:it})} onRejectInbox={rejectInbox} tab={txTab} setTab={setTxTab} preset={txPreset}/>}
         {page==='budget'&&<BudgetPage budgets={budgets} fetchTotals={fetchTotals} dataVersion={dataVersion} month={month} hidden={hidden} shareInfo={shareInfo} onEditBudget={b=>setModal({type:'budget',item:b})} onNewBudget={()=>setModal({type:'budget'})}/>}
         {page==='accounts'&&<AccountsPage accounts={filteredAccounts} transactions={transactions} userId={user.id} hidden={hidden} onEdit={a=>setModal({type:'account',item:a})} onDelete={deleteAccount} onNew={newItem}/>}
         {page==='family'&&<FamilyPage household={household} user={user} members={members} me={me} isDemo={isDemo} onCopy={copyCode} onSignOut={onSignOut} onExitDemo={()=>window.location.assign(window.location.pathname)} onToggleShare={toggleShare} gmail={gmail}/>}
