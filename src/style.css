@@ -531,3 +531,49 @@ h1, h2, h3, h4 { letter-spacing: -.035em; }
 .spark i.now { background:#f2643c; }
 .breakdown-note { margin-top:2px; }
 @media (max-width:760px) { .breakdown-toolbar .segmented { width:100%; } .breakdown-toolbar .segmented button { flex:1; } }
+
+/* Pemilih bulan (berfungsi di Safari Mac & iPhone) */
+.month-picker { display:flex; align-items:center; gap:6px; padding:4px 6px !important; }
+.month-picker select { border:0; background:transparent; font:inherit; font-weight:750; color:#3a2433; font-size:13px; padding:6px 2px; cursor:pointer; appearance:none; -webkit-appearance:none; text-align:center; }
+.month-picker select:focus { outline:none; }
+.month-step { border:0; background:#fbf1ec; color:#d9502b; width:30px; height:30px; border-radius:10px; font-size:18px; font-weight:800; line-height:1; display:grid; place-items:center; }
+.month-step:hover { background:#f8e2d8; }
+
+/* ---------- Kartu kredit ---------- */
+.account-group-icon.credit { background:#f3e9fb; color:#7b3fa0; }
+.credit-tile { background:linear-gradient(160deg,#fff 55%,#fdf1f4); }
+.credit-bar { height:7px; border-radius:99px; background:#f3e9e5; overflow:hidden; margin-top:10px; }
+.credit-bar i { display:block; height:100%; background:linear-gradient(90deg,#e0457b,#7b3fa0); border-radius:99px; }
+.account-tile p.credit-meta { font-size:10px; margin-top:8px; }
+.mobile-only-add { display:none; }
+@media (max-width:760px) { .mobile-only-add { display:inline-flex; } }
+
+/* ---------- Tabungan & aset ---------- */
+.asset-section { display:grid; gap:14px; background:linear-gradient(170deg,#fff 60%,#fff6f0); }
+.asset-sub { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:11px; color:#a3919b; margin-top:-6px; }
+.delta.gain { background:#fff1e0; color:#c96a1f; } .delta.loss { background:#fdeaf0; color:#c93a6e; }
+.asset-reminder { background:#fff4ec; border-color:#ffd9c2; color:#c2502b; }
+.asset-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.asset-card { display:grid; gap:5px; text-align:left; border:1px solid #f3e6e0; background:#fff; border-radius:16px; padding:13px; color:inherit; min-width:0; }
+.asset-card:hover { border-color:#f2b49b; }
+.asset-dot { width:9px; height:9px; border-radius:50%; }
+.asset-name { font-size:11px; color:#8f7b87; font-weight:700; }
+.asset-card strong { font-size:15px; color:#3a1846; letter-spacing:-.03em; overflow-wrap:anywhere; }
+.asset-card small { font-size:10px; color:#a3919b; }
+.asset-card .delta { padding:1px 5px; font-size:9px; }
+.asset-chart { height:250px; }
+.add-platform { align-items:end; }
+@media (max-width:760px) { .asset-cards { grid-template-columns:1fr; } .asset-card { grid-template-columns:auto 1fr auto; align-items:center; column-gap:10px; } .asset-card small { grid-column:2 / -1; } .asset-chart { height:220px; } }
+
+/* ---------- Filter transaksi ---------- */
+.filter-bar { display:flex; gap:10px; align-items:center; }
+.filter-bar .search-field { flex:1; width:auto; }
+.filter-toggle { min-height:44px; }
+.filter-toggle.has-active { border-color:#f2643c; color:#d9502b; background:#fff4ec; }
+.filter-panel { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:12px; padding:14px; background:#fbf6f3; border:1px solid #f3e6e0; border-radius:16px; align-items:end; }
+.filter-panel label { display:grid; gap:6px; font-size:11px; font-weight:700; color:#6d5864; }
+.filter-panel select { border:1px solid #eadbd4; border-radius:11px; padding:10px; background:#fff; color:#3a2433; font-size:13px; font-weight:600; min-height:42px; }
+.filter-reset { grid-column:1 / -1; justify-self:start; display:inline-flex; align-items:center; gap:5px; font-size:12px; }
+.filter-summary { display:flex; justify-content:space-between; gap:10px; font-size:11px; color:#8f7b87; padding:12px 2px 2px; border-bottom:1px solid #f3ece9; }
+.filter-summary strong { color:#c93a6e; } .filter-summary strong.is-positive { color:#d9622b; }
+@media (max-width:760px) { .filter-panel { grid-template-columns:1fr 1fr; } }
