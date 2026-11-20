@@ -1,16 +1,26 @@
 {
   "id": "/",
-  "name": "Family Finance — Keuangan Kita",
+  "name": "Family Finance",
   "short_name": "Family Finance",
-  "description": "Keuangan keluarga yang tertata: rekening bersama dan pribadi, transaksi, dashboard, dan sinkronisasi cloud.",
-  "lang": "id-ID",
+  "description": "Family money in order: shared and private accounts, budgets, savings and Gmail sync.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#fbf5f2",
   "theme_color": "#3a1846",
   "icons": [
-    {"src":"/icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"/icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
