@@ -553,7 +553,7 @@ h1, h2, h3, h4 { letter-spacing: -.035em; }
 .asset-sub { display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:11px; color:#a3919b; margin-top:-6px; }
 .delta.gain { background:#fff1e0; color:#c96a1f; } .delta.loss { background:#fdeaf0; color:#c93a6e; }
 .asset-reminder { background:#fff4ec; border-color:#ffd9c2; color:#c2502b; }
-.asset-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.asset-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
 .asset-card { display:grid; gap:5px; text-align:left; border:1px solid #f3e6e0; background:#fff; border-radius:16px; padding:13px; color:inherit; min-width:0; }
 .asset-card:hover { border-color:#f2b49b; }
 .asset-dot { width:9px; height:9px; border-radius:50%; }
@@ -633,3 +633,18 @@ h1, h2, h3, h4 { letter-spacing: -.035em; }
 .emoji-row button.chosen { border-color:#f2643c; background:#fff4ec; box-shadow:0 0 0 2px #f2643c33; }
 .sheet-form select { width:100%; border:1px solid #eadbd4; border-radius:14px; padding:12px; background:#fff; color:#3a2433; font-size:14px; font-weight:600; min-height:48px; }
 @media (max-width:760px) { .goal-list { grid-template-columns:1fr; } .goals-summary { grid-template-columns:1fr 1fr; } }
+
+/* Goal linked to investments */
+.goal-sources { display:flex; flex-wrap:wrap; gap:6px; margin-top:-2px; }
+.goal-sources span { font-size:10px; font-weight:700; color:#7b3fa0; background:#f3e9fb; padding:3px 8px; border-radius:99px; }
+.source-list { display:grid; gap:8px; }
+.source-row { display:flex; align-items:center; justify-content:space-between; gap:10px; border:1px solid #f0e2dc; border-radius:14px; padding:10px 12px; background:#fff; }
+.source-row.on { border-color:#f2b49b; background:#fff8f3; }
+.source-check { display:flex !important; align-items:center; gap:10px; cursor:pointer; flex:1; min-width:0; }
+.source-check input { width:20px; height:20px; accent-color:#f2643c; flex-shrink:0; }
+.source-check span { display:grid; gap:2px; min-width:0; }
+.source-check strong { font-size:13px; color:#3a1846; }
+.source-check small { font-size:10px; color:#a3919b; font-weight:500; }
+.share-input { display:flex; align-items:center; gap:4px; }
+.share-input input { width:64px; border:1px solid #eadbd4; border-radius:10px; padding:8px; text-align:right; font-weight:700; font-size:14px; }
+.share-input span { font-weight:700; color:#8f7b87; }

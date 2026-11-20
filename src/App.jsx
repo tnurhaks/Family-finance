@@ -243,7 +243,7 @@ function WeeklyReview({transactions,accounts,budgets,assets,inbox,hidden,onClose
     </section>
     <section className="weekly-block"><h4>Savings & investments</h4>
       {lastAsset?<div className="weekly-row"><span><PiggyBank size={14}/> Total assets <em>· updated {dateLabel(lastAsset.date)}</em></span><strong>{money(lastAsset.Total)}</strong></div>:<p className="weekly-note">No asset values yet.</p>}
-      {(assetDays==null||assetDays>=7)&&<button className="btn btn-soft full" onClick={onUpdateAssets}><RefreshCw size={15}/> Update Bibit, Gotrade & GORO values</button>}
+      {(assetDays==null||assetDays>=7)&&<button className="btn btn-soft full" onClick={onUpdateAssets}><RefreshCw size={15}/> Update investment values</button>}
     </section>
     {inbox.length>0&&<button className="review-banner" onClick={onReviewGmail}><Mail size={18}/><span><strong>{inbox.length} Gmail transaction{inbox.length>1?'s':''}</strong> still need review</span><ArrowRight size={16}/></button>}
     <div className="weekly-actions"><button className="btn btn-outline" onClick={onLater}>Remind me later</button><button className="btn btn-primary" onClick={onDone}><Check size={16}/> Done for this week</button></div>
@@ -358,15 +358,15 @@ function AccountsPage({accounts,transactions,userId,hidden,onEdit,onDelete,onNew
   const groups=[{key:'shared',title:'Shared accounts',desc:'Visible to you and your partner',Icon:Users,match:a=>a.kind!=='credit'&&a.visibility==='shared'},{key:'private',title:'My private accounts',desc:'Only visible to you',Icon:LockKeyhole,match:a=>a.kind!=='credit'&&a.visibility==='private'},{key:'credit',title:'Credit cards',desc:'Showing available limit',Icon:CreditCard,match:a=>a.kind==='credit'}];
   return <div className="page-stack"><div className="page-intro"><div><span className="eyebrow">ACCOUNTS & ASSETS</span><h2>All your money, one place.</h2><p>Account balances, credit card limits, and how your savings are growing.</p></div><button className="btn btn-primary desktop-new" onClick={()=>onNew('account')}><Plus size={17}/> Add account</button></div>
     <AssetSection assets={assets} hidden={hidden} onUpdate={onUpdateAssets} onEdit={onEditAsset}/>
-    <GoalsSection goals={goals} budgets={budgets} hidden={hidden} onNew={onNewGoal} onEdit={onEditGoal} onDeposit={onDepositGoal}/>
+    <GoalsSection goals={goals} budgets={budgets} assets={assets} hidden={hidden} onNew={onNewGoal} onEdit={onEditGoal} onDeposit={onDepositGoal} onUpdateAssets={onUpdateAssets}/>
     {groups.map(g=>{const entries=accounts.filter(g.match);if(g.key==='credit'&&!entries.length)return null;return <section key={g.key} className="account-section"><div className="account-section-title"><div className={`account-group-icon ${g.key}`}><g.Icon size={18}/></div><div><h3>{g.title} <span className="count-pill">{entries.length}</span></h3><p>{g.desc}</p></div></div>{entries.length?<div className="account-grid">{entries.map(a=><AccountTile key={a.id} a={a} balance={getBalance(a,transactions)} userId={userId} hidden={hidden} onEdit={onEdit} onDelete={onDelete}/>)}</div>:<div className="group-empty">No {g.key==='shared'?'shared':'private'} accounts yet.</div>}</section>})}
     <button className="btn btn-soft full mobile-only-add" onClick={()=>onNew('account')}><Plus size={17}/> Add account / credit card</button>
   </div>;
 }
 
 // ---------- Tabungan: catatan nilai aset ----------
-const DEFAULT_PLATFORMS=['Bibit','Gotrade','GORO'];
-const ASSET_COLORS={Bibit:'#f2643c',Gotrade:'#7b5ea7',GORO:'#f7a541'};
+const DEFAULT_PLATFORMS=['Bibit','GORO','Stockbit','Gotrade'];
+const ASSET_COLORS={Bibit:'#f2643c',Gotrade:'#7b5ea7',GORO:'#f7a541',Stockbit:'#e0457b'};
 const assetColor=(p,i)=>ASSET_COLORS[p]||PALETTE[(i+3)%PALETTE.length];
 function assetSeries(assets){
   const platforms=[...new Set([...DEFAULT_PLATFORMS.filter(p=>assets.some(a=>a.platform===p)),...assets.map(a=>a.platform)])];
@@ -411,6 +411,10 @@ function AssetUpdateSheet({assets,existing,onClose,onSave,onDelete}){
   </form></Sheet>;
 }
 // ---------- Savings goals ----------
+const INVEST_PLATFORMS=['Bibit','GORO','Stockbit','Gotrade'];
+const latestAssetValues=assets=>{const m={};[...assets].sort((a,b)=>a.recorded_on.localeCompare(b.recorded_on)).forEach(a=>{m[a.platform]={value:Number(a.value),date:a.recorded_on}});return m};
+const goalSources=g=>Array.isArray(g?.sources)?g.sources.filter(x=>x&&x.platform&&Number(x.share)>0):[];
+const goalSaved=(g,latest)=>{const src=goalSources(g);if(!src.length)return Number(g.saved_amount||0);return sum(src,x=>(latest[x.platform]?.value||0)*Number(x.share)/100)};
 const GOAL_EMOJIS=['🎯','🛟','🏝️','🗾','🏡','🏃','🎓','🚗','💍','👶','🕋','💻'];
 const GOAL_SUGGESTIONS=['Emergency fund','Vietnam 2027','Japan 2028','Mandalika run 2027','Land / house','New car'];
 const monthYear=iso=>new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB',{month:'short',year:'numeric'});
@@ -422,10 +426,13 @@ function GoalStatus({plan}){
   if(plan.status==='no-plan')return <span className="goal-chip idle">Set a monthly amount</span>;
   return <span className="goal-chip idle">No deadline</span>;
 }
-function GoalsSection({goals,budgets,hidden,onNew,onEdit,onDeposit}){
+function GoalsSection({goals,budgets,assets,hidden,onNew,onEdit,onDeposit,onUpdateAssets}){
   const today=dateToday();
+  const latest=useMemo(()=>latestAssetValues(assets||[]),[assets]);
   const active=goals.filter(g=>!g.archived);
-  const plans=active.map(g=>({g,plan:goalPlan(g,today)}));
+  const plans=active.map(g=>({g,plan:goalPlan({...g,saved_amount:goalSaved(g,latest)},today)}));
+  const shareUse={};active.forEach(g=>goalSources(g).forEach(x=>{shareUse[x.platform]=(shareUse[x.platform]||0)+Number(x.share)}));
+  const overAlloc=Object.entries(shareUse).filter(([,v])=>v>100.0001);
   const money=v=>hidden?'•••':number(v);
   const totalSaved=sum(plans,x=>x.plan.saved), totalTarget=sum(plans,x=>x.plan.target);
   const totalMonthly=sum(plans.filter(x=>x.plan.status!=='done'),x=>x.plan.monthly);
@@ -439,29 +446,46 @@ function GoalsSection({goals,budgets,hidden,onNew,onEdit,onDeposit}){
       <div><span>Needed to hit all deadlines</span><strong className={totalNeeded>totalMonthly+1?'is-over':''}>{money(Math.ceil(totalNeeded/1000)*1000)}</strong></div>
       {tabBudget>0&&<div><span>Tabungan budget {year}</span><strong className={totalNeeded>tabBudget+1?'is-over':''}>{money(tabBudget)}</strong></div>}
     </div>}
+    {overAlloc.length>0&&<div className="weekly-alerts">{overAlloc.map(([p,v])=><div key={p}><CircleHelp size={15}/> {p} is allocated {Math.round(v)}% across goals — keep the total at 100% or less.</div>)}</div>}
     {!active.length?<EmptyState icon={Target} title="No goals yet" description="Add goals like an emergency fund, Vietnam 2027 or land — the app will tell you how much to save each month and when you'll get there." action="Add first goal" onAction={onNew}/>:
     <div className="goal-list">{plans.map(({g,plan})=><article className="goal-card" key={g.id}>
       <div className="goal-top"><span className="goal-emoji" aria-hidden="true">{g.emoji||'🎯'}</span><div className="goal-title"><strong>{g.name}</strong><small>{g.target_date?`Target ${dateLabel(g.target_date)}`:'No deadline'}{plan.ret>0?` · ${plan.ret}%/yr return`:''}</small></div><GoalStatus plan={plan}/></div>
+      {goalSources(g).length>0&&<div className="goal-sources">{goalSources(g).map(x=><span key={x.platform}>💼 {x.platform} {Number(x.share)}%{latest[x.platform]?'':' · no value yet'}</span>)}</div>}
       <div className="goal-bar"><i style={{width:`${plan.progress*100}%`}}/></div>
       <div className="goal-amounts"><span><strong>{money(plan.saved)}</strong> of {money(plan.target)}</span><span>{Math.round(plan.progress*100)}%</span></div>
       {plan.status!=='done'&&<div className="goal-calc">
         <div><span>Saving {money(plan.monthly)}/mo</span><strong>{plan.months==null?'Won\'t be reached':`Reached ${monthYear(plan.eta)} · ${durationText(plan.months)}`}</strong></div>
         {plan.needed!=null&&<div><span>To hit {monthYear(g.target_date)} ({durationText(plan.monthsLeft)} left)</span><strong className={plan.gap>1?'is-over':''}>{money(Math.ceil(plan.needed/1000)*1000)}/mo{plan.gap>1?` (+${hidden?'•••':compact(plan.gap)})`:''}</strong></div>}
       </div>}
-      <div className="goal-actions"><button className="btn btn-soft btn-small" onClick={()=>onDeposit(g)}><PiggyBank size={14}/> Add savings</button><button className="btn btn-outline btn-small" onClick={()=>onEdit(g)}><Pencil size={14}/> Edit</button></div>
+      <div className="goal-actions">{goalSources(g).length?<button className="btn btn-soft btn-small" onClick={onUpdateAssets}><RefreshCw size={14}/> Update values</button>:<button className="btn btn-soft btn-small" onClick={()=>onDeposit(g)}><PiggyBank size={14}/> Add savings</button>}<button className="btn btn-outline btn-small" onClick={()=>onEdit(g)}><Pencil size={14}/> Edit</button></div>
     </article>)}</div>}
   </section>;
 }
-function GoalSheet({existing,onClose,onSave,onDelete}){
+function GoalSheet({existing,assets=[],goals=[],onClose,onSave,onDelete}){
+  const latest=latestAssetValues(assets);
+  const platforms=[...new Set([...INVEST_PLATFORMS,...assets.map(a=>a.platform)])];
+  const usedElsewhere=p=>sum(goals.filter(g=>g.id!==existing?.id&&!g.archived),g=>sum(goalSources(g).filter(x=>x.platform===p),x=>Number(x.share)));
+  const [mode,setMode]=useState(goalSources(existing).length?'linked':'manual');
+  const [shares,setShares]=useState(()=>Object.fromEntries(goalSources(existing).map(x=>[x.platform,String(x.share)])));
   const [emoji,setEmoji]=useState(existing?.emoji||'🎯'),[name,setName]=useState(existing?.name||''),[target,setTarget]=useState(String(existing?.target_amount??'')),[saved,setSaved]=useState(String(existing?.saved_amount??'0')),[monthly,setMonthly]=useState(String(existing?.monthly_contribution??'')),[ret,setRet]=useState(String(existing?.annual_return??'0')),[date,setDate]=useState(existing?.target_date||''),[note,setNote]=useState(existing?.note||''),[saving,setSaving]=useState(false),[error,setError]=useState('');
-  const valid=name.trim()&&Number(target)>0;
-  const plan=valid?goalPlan({target_amount:Number(target),saved_amount:Number(saved||0),monthly_contribution:Number(monthly||0),annual_return:Number(ret||0),target_date:date||null},dateToday()):null;
-  async function submit(e){e.preventDefault();setSaving(true);setError('');try{await onSave({emoji,name:name.trim(),target_amount:Number(target),saved_amount:Number(saved||0),monthly_contribution:Number(monthly||0),annual_return:Number(ret||0),target_date:date||null,note:note.trim()},existing);onClose()}catch(err){setError(err.message||'Couldn\'t save the goal.')}finally{setSaving(false)}}
+  const sources=mode==='linked'?Object.entries(shares).filter(([,v])=>Number(v)>0).map(([platform,v])=>({platform,share:Math.min(100,Number(v))})):[];
+  const linkedValue=sum(sources,x=>(latest[x.platform]?.value||0)*x.share/100);
+  const valid=name.trim()&&Number(target)>0&&(mode==='manual'||sources.length>0);
+  const plan=valid?goalPlan({target_amount:Number(target),saved_amount:mode==='linked'?linkedValue:Number(saved||0),monthly_contribution:Number(monthly||0),annual_return:Number(ret||0),target_date:date||null},dateToday()):null;
+  async function submit(e){e.preventDefault();setSaving(true);setError('');try{await onSave({emoji,name:name.trim(),target_amount:Number(target),sources,saved_amount:Number(saved||0),monthly_contribution:Number(monthly||0),annual_return:Number(ret||0),target_date:date||null,note:note.trim()},existing);onClose()}catch(err){setError(err.message||'Couldn\'t save the goal.')}finally{setSaving(false)}}
   async function remove(){if(!window.confirm(`Delete goal "${existing.name}"?`))return;try{await onDelete(existing);onClose()}catch(err){setError(err.message||'Couldn\'t delete.')}}
   return <Sheet title={existing?'Edit goal':'New savings goal'} onClose={onClose}><form className="form sheet-form" onSubmit={submit}>
     <div><div className="field-label">Icon</div><div className="emoji-row">{GOAL_EMOJIS.map(x=><button type="button" key={x} className={emoji===x?'chosen':''} onClick={()=>setEmoji(x)}>{x}</button>)}</div></div>
     <label>Goal name<input required list="goal-names" maxLength={80} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Vietnam 2027"/><datalist id="goal-names">{GOAL_SUGGESTIONS.map(x=><option key={x} value={x}/>)}</datalist></label>
-    <div className="form-pair"><label>Target amount (Rp)<input type="number" inputMode="numeric" min="1" step="1" required value={target} onChange={e=>setTarget(e.target.value)}/></label><label>Saved so far (Rp)<input type="number" inputMode="numeric" min="0" step="1" value={saved} onChange={e=>setSaved(e.target.value)}/></label></div>
+    <label>Target amount (Rp)<input type="number" inputMode="numeric" min="1" step="1" required value={target} onChange={e=>setTarget(e.target.value)}/></label>
+    <div><div className="field-label">Where is this money kept?</div><Segmented label="Funding" value={mode} onChange={setMode} options={[{value:'manual',label:'Savings / cash'},{value:'linked',label:'Investments'}]}/></div>
+    {mode==='manual'?<label>Saved so far (Rp)<input type="number" inputMode="numeric" min="0" step="1" value={saved} onChange={e=>setSaved(e.target.value)}/></label>:
+    <div className="source-list">{platforms.map(p=>{const other=usedElsewhere(p),on=shares[p]!==undefined;return <div className={`source-row ${on?'on':''}`} key={p}>
+      <label className="source-check"><input type="checkbox" checked={on} onChange={e=>setShares(sh=>{const n={...sh};if(e.target.checked)n[p]=String(Math.max(0,100-other));else delete n[p];return n})}/><span><strong>{p}</strong><small>{latest[p]?`${number(latest[p].value)} · ${dateLabel(latest[p].date)}`:'No value yet — add it in Update values'}{other>0?` · ${Math.round(other)}% used by other goals`:''}</small></span></label>
+      {on&&<div className="share-input"><input type="number" inputMode="numeric" min="1" max="100" step="1" value={shares[p]} onChange={e=>setShares(sh=>({...sh,[p]:e.target.value}))} aria-label={`Share of ${p}`}/><span>%</span></div>}
+    </div>})}
+    <p className="field-help"><PiggyBank size={15}/> Progress = current value × share. It moves automatically each time you update asset values (weekly review). Use a share below 100% if one account holds several goals.</p>
+    <div className="context-note"><Target size={16}/> Counted toward this goal now: <strong>&nbsp;{number(linkedValue)}</strong></div></div>}
     <div className="form-pair"><label>Saving per month (Rp)<input type="number" inputMode="numeric" min="0" step="1" value={monthly} onChange={e=>setMonthly(e.target.value)} placeholder="0"/></label><label>Target date <span className="optional">(optional)</span><input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label></div>
     <label>Expected return per year (%)<select value={ret} onChange={e=>setRet(e.target.value)}><option value="0">0% — bank savings / cash</option><option value="4">4% — money market fund</option><option value="6">6% — bonds / mixed fund</option><option value="8">8% — mixed with stocks</option><option value="10">10% — equity (long term)</option>{!['0','4','6','8','10'].includes(String(Number(ret)))&&<option value={ret}>{ret}%</option>}</select></label>
     {plan&&<div className="goal-preview">
@@ -563,7 +587,7 @@ function FinanceShell({user,household,accounts,transactions,budgets,inbox,member
     {modal?.type==='account'&&<AccountSheet existing={modal.item} currentBalance={modal.item?getBalance(modal.item,transactions):0} onClose={()=>setModal(null)} onSave={saveAccount}/>}
     {modal?.type==='transaction'&&<TransactionSheet existing={modal.item} draft={modal.draft} accounts={accounts} onClose={()=>setModal(null)} onSave={(payload,existing)=>saveTransaction(payload,existing,modal.draft)}/>}
     {modal?.type==='assets'&&<AssetUpdateSheet assets={assets} existing={modal.item} onClose={()=>setModal(null)} onSave={rows=>guarded(()=>onSaveAssets(rows,modal.item),'Asset values saved')} onDelete={a=>guarded(()=>onDeleteAsset(a),'Asset entry deleted')}/>}
-    {modal?.type==='goal'&&<GoalSheet existing={modal.item} onClose={()=>setModal(null)} onSave={(payload,existing)=>guarded(()=>onSaveGoal(payload,existing),existing?'Goal updated':'Goal added')} onDelete={g=>guarded(()=>onDeleteGoal(g),'Goal deleted')}/>}
+    {modal?.type==='goal'&&<GoalSheet existing={modal.item} assets={assets} goals={goals} onClose={()=>setModal(null)} onSave={(payload,existing)=>guarded(()=>onSaveGoal(payload,existing),existing?'Goal updated':'Goal added')} onDelete={g=>guarded(()=>onDeleteGoal(g),'Goal deleted')}/>}
     {modal?.type==='deposit'&&<DepositSheet goal={modal.item} onClose={()=>setModal(null)} onSave={(g,v)=>guarded(()=>onSetGoalSaved(g,v),'Goal progress updated')}/>}
     {weeklyOpen&&<WeeklyReview transactions={transactions} accounts={accounts} budgets={budgets} assets={assets} inbox={inbox} hidden={hidden} onClose={()=>setWeeklyOpen(false)} onLater={laterWeekly} onDone={doneWeekly} onUpdateAssets={()=>{setWeeklyOpen(false);setPage('accounts');setModal({type:'assets'})}} onReviewGmail={()=>{setWeeklyOpen(false);goReview()}}/>}
     {modal?.type==='budget'&&<BudgetSheet existing={modal.item} year={Number(month.slice(0,4))} onClose={()=>setModal(null)} onSave={saveBudget} onDelete={deleteBudget}/>}
@@ -638,10 +662,10 @@ function makeDemo(){
   const today=dateToday();
   const inbox=[{id:'in-1',external_id:'g1',sender:'noreply.livin@bankmandiri.co.id',subject:'Pembayaran QRIS Berhasil',merchant:'SUKA ROTI',kind:'expense',amount:38000,category:'Kebutuhan',subcategory:'',account_hint:'SKYZ',occurred_on:today,reason:'Unknown merchant'},{id:'in-2',external_id:'g2',sender:'bca@bca.co.id',subject:'Internet Transaction Journal',merchant:'Transfer ke ENOH SULASTRI',kind:'expense',amount:210000,category:'',subcategory:'',account_hint:'BCA',occurred_on:today,reason:'Outgoing transfer — pick a category'}];
   const assets=[];for(let w=7;w>=0;w--){const d=new Date();d.setDate(d.getDate()-w*7);const day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;[['Bibit',14200000,180000],['Gotrade',4100000,-60000],['GORO',2500000,105000]].forEach(([p,base,step],k)=>assets.push({id:`as-${w}-${k}`,platform:p,value:Math.round(base+step*(7-w)+((w*37+k*11)%5-2)*45000),recorded_on:day}))}
-  const goals=[{id:'g1',emoji:'🛟',name:'Emergency fund',target_amount:30000000,saved_amount:12500000,monthly_contribution:1500000,annual_return:4,target_date:null},
+  const goals=[{id:'g1',emoji:'🛟',name:'Emergency fund',target_amount:30000000,saved_amount:0,monthly_contribution:1500000,annual_return:4,target_date:null,sources:[{platform:'Bibit',share:60}]},
     {id:'g2',emoji:'🏝️',name:'Vietnam 2027',target_amount:20000000,saved_amount:5000000,monthly_contribution:2000000,annual_return:0,target_date:'2027-05-28'},
-    {id:'g3',emoji:'🗾',name:'Japan 2028',target_amount:45000000,saved_amount:3000000,monthly_contribution:1000000,annual_return:4,target_date:'2027-12-31'},
-    {id:'g4',emoji:'🏡',name:'Land / house',target_amount:500000000,saved_amount:50000000,monthly_contribution:5000000,annual_return:6,target_date:null}];
+    {id:'g3',emoji:'🗾',name:'Japan 2028',target_amount:45000000,saved_amount:0,monthly_contribution:1000000,annual_return:4,target_date:'2027-12-31',sources:[{platform:'Bibit',share:40},{platform:'Gotrade',share:100}]},
+    {id:'g4',emoji:'🏡',name:'Land / house',target_amount:500000000,saved_amount:0,monthly_contribution:5000000,annual_return:6,target_date:null,sources:[{platform:'GORO',share:100}]}];
   return {household,user,members,accounts,budgets,inbox,assets,goals,tx:tx.sort((a,b)=>b.occurred_on.localeCompare(a.occurred_on))};
 }
 function demoTotals(transactions,year){const map={};transactions.filter(t=>t.occurred_on.startsWith(`${year}-`)).forEach(t=>{const k=[t.occurred_on.slice(0,7),t.kind,t.category,t.subcategory||''].join('|');map[k]=(map[k]||0)+Number(t.amount)});return Object.entries(map).map(([k,total])=>{const [month,kind,category,subcategory]=k.split('|');return {month,kind,category,subcategory,total}})}
