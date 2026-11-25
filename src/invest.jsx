@@ -72,7 +72,7 @@ export function InvestPage({ holdings, prices, history, hidden, isDemo, onNew, o
       {pf.byPlatform.map((g, gi) => <section key={g.key} className="surface holdings-section">
         <div className="panel-heading"><div><span className="eyebrow" style={{ color: colorFor(g.key, gi) }}>{g.key.toUpperCase()}</span><h3>{rp(g.value, hidden)} <span className={`delta ${tone(g.pl)}`}>{signed(g.pl, hidden)} · {pct(g.plPct)}</span></h3></div></div>
         <div className="holdings-list">{g.items.sort((a, b) => b.value - a.value).map(h => <button key={h.id} className="holding-row" onClick={() => onEdit(h)}>
-          <span className="holding-main"><strong>{h.symbol || h.name || typeLabel(h.asset_type)}</strong>
+          <span className="holding-main"><strong>{h.symbol || h.name || typeLabel(h.asset_type)}{h.pocket ? <em className="pocket-tag">{h.pocket}</em> : null}</strong>
             <small>{h.asset_type === 'stock_idx' ? `${num(h.lots, 0)} lot · avg ${num(h.avg_cost, 0)}`
               : h.asset_type === 'fund' ? `${num(h.quantity, 4)} unit · avg NAV ${num(h.avg_cost, 2)}`
               : h.asset_type === 'stock_us' ? `${num(h.quantity, 6)} share · avg $${num(h.avg_cost, 2)}`
@@ -89,7 +89,8 @@ export function InvestPage({ holdings, prices, history, hidden, isDemo, onNew, o
 
 export function HoldingSheet({ Sheet, existing, onClose, onSave, onDelete, searchFund }) {
   const e = existing || {};
-  const [platform, setPlatform] = useState(e.platform || 'Stockbit');
+  const [platform, setPlatform] = useState(INVEST_PLATFORMS.includes(e.platform) ? e.platform : 'Stockbit');
+  const [pocket, setPocket] = useState(e.pocket || '');
   const [type, setType] = useState(e.asset_type || 'stock_idx');
   const [symbol, setSymbol] = useState(e.symbol || '');
   const [name, setName] = useState(e.name || '');
@@ -109,7 +110,7 @@ export function HoldingSheet({ Sheet, existing, onClose, onSave, onDelete, searc
     if (type === 'fund' && !fund) { setError('Search and pick the mutual fund first.'); return; }
     if ((type === 'stock_idx' || type === 'stock_us') && !symbol.trim()) { setError('Enter the ticker code.'); return; }
     const payload = {
-      platform: platform.trim(), asset_type: type, symbol: market && type !== 'fund' ? symbol.trim().toUpperCase() : symbol.trim(),
+      platform, pocket: pocket.trim().toUpperCase(), asset_type: type, symbol: market && type !== 'fund' ? symbol.trim().toUpperCase() : symbol.trim(),
       name: type === 'fund' ? fund.name : name.trim(), fund_id: type === 'fund' ? fund.id : null,
       quantity: market ? Number(qty || 0) * (type === 'stock_idx' ? 100 : 1) : 0, avg_cost: market ? Number(avg || 0) : 0,
       currency: type === 'stock_us' ? 'USD' : 'IDR',
@@ -121,9 +122,10 @@ export function HoldingSheet({ Sheet, existing, onClose, onSave, onDelete, searc
 
   return <Sheet title={existing ? 'Edit holding' : 'Add holding'} onClose={onClose}><form className="form sheet-form" onSubmit={submit}>
     <div className="form-pair">
-      <label>Platform<input list="inv-platforms" required value={platform} onChange={ev => setPlatform(ev.target.value)} maxLength={60}/><datalist id="inv-platforms">{INVEST_PLATFORMS.map(p => <option key={p} value={p}/>)}</datalist></label>
+      <label>Platform<select value={platform} onChange={ev => setPlatform(ev.target.value)}>{INVEST_PLATFORMS.map(p => <option key={p} value={p}>{p}</option>)}</select></label>
       <label>Type<select value={type} onChange={ev => setType(ev.target.value)}>{ASSET_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select></label>
     </div>
+    <label>Portfolio inside the platform <span className="optional">(optional, e.g. RDPU, RUMAH)</span><input value={pocket} onChange={ev => setPocket(ev.target.value)} maxLength={40} placeholder="Leave empty if not split"/></label>
     {(type === 'stock_idx' || type === 'stock_us') && <label>Ticker<input required value={symbol} onChange={ev => setSymbol(ev.target.value.toUpperCase())} placeholder={type === 'stock_idx' ? 'e.g. BBCA' : 'e.g. VOO'} maxLength={12} autoCapitalize="characters"/></label>}
     {type === 'fund' && <div className="fund-picker">
       {fund ? <div className="fund-chosen"><span><strong>{fund.name}</strong>{fund.nav ? <small>NAV {num(fund.nav, 4)} · {fund.category}</small> : null}</span><button type="button" className="btn btn-outline btn-small" onClick={() => { setFund(null); setResults([]); }}>Change</button></div> : <>

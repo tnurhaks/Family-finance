@@ -816,3 +816,12 @@ h1, h2, h3, h4 { color:#262626; }
 .db-plan-line { position:absolute; left:0; right:0; border-top:1px dashed #763216; pointer-events:none; }
 .db-plan-line em { position:absolute; right:0; top:-14px; font-size:9.5px; font-style:normal; color:#763216; }
 @media (max-width:640px){ .db-stats { grid-template-columns:1fr 1fr; } .db-stats>div:last-child { grid-column:1/-1; } .db-big strong { font-size:26px; } }
+
+/* v13 Portfolio hero: krem dengan teks burgundy */
+.surface.invest-hero { background:#fbf8ec !important; border:1px solid #d9cfa8 !important; color:#7a1f2b !important; }
+.surface.invest-hero .invest-total, .surface.invest-hero h2, .surface.invest-hero h3 { color:#7a1f2b !important; }
+.surface.invest-hero .eyebrow { color:#6b7d9a !important; }
+.surface.invest-hero .invest-sub, .surface.invest-hero .invest-hero-side small, .surface.invest-hero .invest-warn { color:#7a1f2b !important; opacity:.85; }
+.surface.invest-hero .invest-hero-side .btn-soft { background:#7a1f2b !important; color:#fffcf2 !important; border-color:#7a1f2b !important; }
+.surface.invest-hero .delta.flat { background:#f1e6d6 !important; color:#7a1f2b !important; }
+.pocket-tag { font-style:normal; font-size:10px; font-weight:800; letter-spacing:.04em; color:#7a1f2b; background:#f1e2d8; border-radius:99px; padding:2px 7px; margin-left:6px; vertical-align:middle; }
