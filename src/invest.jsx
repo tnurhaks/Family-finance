@@ -10,8 +10,8 @@ const pct = p => `${p >= 0 ? '+' : '−'}${Math.abs(p * 100).toFixed(2)}%`;
 const signed = (n, hidden) => (hidden ? '•••' : `${n >= 0 ? '+' : '−'}${idr.format(Math.abs(Math.round(n)))}`);
 const tone = n => (n > 0 ? 'gain' : n < 0 ? 'loss' : 'flat');
 const when = iso => (iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
-const PLATFORM_COLORS = { Stockbit: '#f2643c', Bibit: '#7b5ea7', Gotrade: '#f7a541', GORO: '#e0457b' };
-const colorFor = (p, i) => PLATFORM_COLORS[p] || ['#ff9f7a', '#b07cc6', '#ffcb6b', '#a89ba8'][i % 4];
+const PLATFORM_COLORS = { Stockbit: '#db6132', Bibit: '#6fb4aa', Gotrade: '#e17e57', GORO: '#763216' };
+const colorFor = (p, i) => PLATFORM_COLORS[p] || ['#eba88e', '#82c0b8', '#e99f81', '#96a5ad'][i % 4];
 
 export function InvestPage({ holdings, prices, history, hidden, isDemo, onNew, onEdit, onRefresh }) {
   const pf = useMemo(() => computePortfolio(holdings, prices), [holdings, prices]);
@@ -58,13 +58,13 @@ export function InvestPage({ holdings, prices, history, hidden, isDemo, onNew, o
         <div className="panel-heading"><div><span className="eyebrow">GROWTH</span><h3>Portfolio value vs money put in</h3></div></div>
         {series.length >= 2 ? <div className="asset-chart">{hidden ? <div className="masked-graph"><EyeOff size={24}/><span>Chart hidden</span></div> :
           <ResponsiveContainer width="100%" height="100%"><LineChart data={series} margin={{ top: 10, right: 8, left: -6, bottom: 0 }}>
-            <CartesianGrid stroke="#f1e7e4" strokeDasharray="3 5" vertical={false}/>
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: '#a8979f', fontSize: 11 }} minTickGap={18}/>
-            <YAxis tickLine={false} axisLine={false} width={54} tick={{ fill: '#a8979f', fontSize: 11 }} tickFormatter={v => new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v)}/>
-            <Tooltip formatter={(v, n) => [idr.format(v), n]} labelStyle={{ color: '#3a1846' }}/>
+            <CartesianGrid stroke="#f3eed7" strokeDasharray="3 5" vertical={false}/>
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: '#94a3ab', fontSize: 11 }} minTickGap={18}/>
+            <YAxis tickLine={false} axisLine={false} width={54} tick={{ fill: '#94a3ab', fontSize: 11 }} tickFormatter={v => new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(v)}/>
+            <Tooltip formatter={(v, n) => [idr.format(v), n]} labelStyle={{ color: '#22343c' }}/>
             <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }}/>
-            <Line type="monotone" dataKey="value" name="Market value" stroke="#f2643c" strokeWidth={2.5} dot={false}/>
-            <Line type="monotone" dataKey="cost" name="Cost" stroke="#7b5ea7" strokeWidth={2} strokeDasharray="5 4" dot={false}/>
+            <Line type="monotone" dataKey="value" name="Market value" stroke="#db6132" strokeWidth={2.5} dot={false}/>
+            <Line type="monotone" dataKey="cost" name="Cost" stroke="#6fb4aa" strokeWidth={2} strokeDasharray="5 4" dot={false}/>
           </LineChart></ResponsiveContainer>}</div>
           : <p className="tiny-note">The chart builds up automatically — one point per day after each price update.</p>}
       </section>

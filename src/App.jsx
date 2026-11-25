@@ -11,6 +11,7 @@ import {
 import { goalPlan, monthsUntil } from './goals';
 import { InvestPage, HoldingSheet } from './invest';
 import { usePinLock, PinLockScreen, PinCard } from './pin';
+import { RC, Band, PillBox, Gauge, CashBox, VBars, StackedLine, DonutLabels, BudgetBars } from './report';
 import { TAXONOMY, EXPENSE_GROUPS, INTERNAL_INCOME, isRealIncome, isSpending, isSaving, iconFor, labelFor } from './categories';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -18,7 +19,7 @@ import {
 } from 'recharts';
 import './style.css';
 
-const PALETTE = ['#f2643c', '#7b5ea7', '#f7a541', '#e0457b', '#ff9f7a', '#b07cc6', '#ffcb6b', '#a89ba8'];
+const PALETTE = ['#db6132', '#6fb4aa', '#763216', '#4b7f78', '#e9a15f', '#2f4752', '#c9b98a', '#a8462a'];
 const sum = (list, fn = x => x) => list.reduce((s, x) => s + Number(fn(x) || 0), 0);
 const currency = new Intl.NumberFormat('id-ID', { style:'currency', currency:'IDR', minimumFractionDigits:0, maximumFractionDigits:2 });
 const number = n => currency.format(Number(n) || 0);
@@ -162,7 +163,7 @@ function InboxList({items,hidden,onApprove,onReject}) {
   return <div className="transaction-list">{items.map(it=><article className="transaction-item inbox-item" key={it.id}><div className="category-icon category-inbox" aria-hidden="true"><Mail size={19}/></div><div className="transaction-description"><strong>{it.merchant||it.subject||it.sender}</strong><span>{it.subcategory?`Suggested: ${it.category} · ${it.subcategory}`:'Category unknown'}{it.account_hint?` · ${it.account_hint}`:''}</span><small>{dateLabel(it.occurred_on)} <span className="middot">·</span> {it.reason||it.sender}</small></div><div className="transaction-side"><strong className={it.kind==='income'?'is-positive':''}>{it.amount==null?'Rp ?':hidden?'••••••':number(it.amount)}</strong><div className="inbox-actions"><button className="btn btn-soft btn-small" onClick={()=>onApprove(it)}><Check size={14}/> Review</button><IconButton label="Dismiss this email" onClick={()=>onReject(it)}><X size={15}/></IconButton></div></div></article>)}</div>;
 }
 function InsightGraph({data,hidden}){
-  return <section className="surface panel-graph"><div className="panel-heading"><div><span className="eyebrow">OVERVIEW</span><h3>6-month cash flow</h3></div><div className="graph-legend"><span><i className="dot dot-mint"/>Income</span><span><i className="dot dot-blue"/>Spending</span></div></div>{hidden?<div className="masked-graph"><EyeOff size={24}/><span>Chart hidden</span></div>:<div className="graph-wrap"><ResponsiveContainer width="100%" height="100%"><BarChart data={data} margin={{top:14,right:0,left:-20,bottom:0}} barGap={6}><CartesianGrid stroke="#f1e7e4" strokeDasharray="3 5" vertical={false}/><XAxis dataKey="label" tickLine={false} axisLine={false} tick={{fill:'#85919d',fontSize:12}} dy={9}/><YAxis tickLine={false} axisLine={false} tick={{fill:'#98a4ae',fontSize:11}} tickFormatter={compact}/><Tooltip formatter={number} contentStyle={{borderRadius:14,border:'1px solid #e9edf0',boxShadow:'0 14px 30px #3a184620'}}/><Bar dataKey="pemasukan" name="Income" fill="#f59e42" radius={[6,6,0,0]} maxBarSize={30}/><Bar dataKey="pengeluaran" name="Spending" fill="#7b5ea7" radius={[6,6,0,0]} maxBarSize={30}/></BarChart></ResponsiveContainer></div>}</section>;
+  return <section className="surface panel-graph"><div className="panel-heading"><div><span className="eyebrow">OVERVIEW</span><h3>6-month cash flow</h3></div><div className="graph-legend"><span><i className="dot dot-mint"/>Income</span><span><i className="dot dot-blue"/>Spending</span></div></div>{hidden?<div className="masked-graph"><EyeOff size={24}/><span>Chart hidden</span></div>:<div className="graph-wrap"><ResponsiveContainer width="100%" height="100%"><BarChart data={data} margin={{top:14,right:0,left:-20,bottom:0}} barGap={6}><CartesianGrid stroke="#f3eed7" strokeDasharray="3 5" vertical={false}/><XAxis dataKey="label" tickLine={false} axisLine={false} tick={{fill:'#84959e',fontSize:12}} dy={9}/><YAxis tickLine={false} axisLine={false} tick={{fill:'#98a7ae',fontSize:11}} tickFormatter={compact}/><Tooltip formatter={number} contentStyle={{borderRadius:14,border:'1px solid #f4efda',boxShadow:'0 14px 30px #22343c20'}}/><Bar dataKey="pemasukan" name="Income" fill="#db6132" radius={[6,6,0,0]} maxBarSize={30}/><Bar dataKey="pengeluaran" name="Spending" fill="#6fb4aa" radius={[6,6,0,0]} maxBarSize={30}/></BarChart></ResponsiveContainer></div>}</section>;
 }
 function CategoryGraph({data,expense,hidden}) {
   return <section className="surface panel-categories"><div className="panel-heading"><div><span className="eyebrow">SPENDING</span><h3>Where did the money go?</h3></div></div>{!data.length?<EmptyState icon={BarChart3} title="No spending yet" description="Categories will appear once you record an expense."/>:hidden?<div className="masked-graph"><EyeOff size={24}/><span>Details hidden</span></div>:<><div className="donut-area"><ResponsiveContainer width="100%" height={204}><PieChart><Pie data={data} dataKey="value" nameKey="name" innerRadius={66} outerRadius={89} paddingAngle={3} stroke="none">{data.map((_,i)=><Cell key={i} fill={PALETTE[i%PALETTE.length]}/>)}</Pie><Tooltip formatter={number}/></PieChart></ResponsiveContainer><div className="donut-center"><span>This month</span><strong>{compact(expense)}</strong></div></div><div className="category-legend">{data.slice(0,4).map((d,i)=><div key={d.name}><span><i className="dot" style={{background:PALETTE[i%PALETTE.length]}}/>{d.name}</span><strong>{number(d.value)}</strong></div>)}</div></>}</section>;
@@ -252,7 +253,50 @@ function WeeklyReview({transactions,accounts,budgets,assets,inbox,hidden,onClose
   </div></Sheet>;
 }
 
-function Dashboard({user,accounts,allAccounts,transactions,scope,month,hidden,setHidden,onPage,onNew,onEdit,onDelete,pendingCount,onReview,fetchTotals,dataVersion,onOpenCategory,onWeekly}) {
+// ---------- One-pager financial report ----------
+function monthBudget(budgets,year,groups){
+  return sum(groups,g=>{const rows=budgets.filter(b=>b.year===year&&b.category===g);const head=rows.find(r=>!r.subcategory);return head?Number(head.monthly_amount):sum(rows.filter(r=>r.subcategory),r=>r.monthly_amount)});
+}
+function FinancialReport({accounts,transactions,ownedTx,budgets=[],month,hidden}){
+  const year=Number(month.slice(0,4));
+  const cur=ownedTx.filter(t=>t.occurred_on.startsWith(month));
+  const income=sum(cur.filter(isRealIncome),t=>t.amount),spend=sum(cur.filter(isSpending),t=>t.amount),saved=sum(cur.filter(isSaving),t=>t.amount);
+  const planned=monthBudget(budgets,year,['Kebutuhan','Keinginan']);
+  const cashAccts=accounts.filter(a=>a.kind!=='credit');
+  const months=Array.from({length:6},(_,i)=>shiftMonth(month,i-5));
+  const balanceAt=end=>sum(cashAccts,a=>Number(a.opening_balance)+transactions.filter(t=>t.occurred_on<=end).reduce((n,t)=>n+txDelta(t,a.id),0));
+  const inflow=sum(transactions.filter(t=>t.occurred_on.startsWith(month)),t=>Math.max(0,cashAccts.reduce((n,a)=>n+txDelta(t,a.id),0)));
+  const outflow=sum(transactions.filter(t=>t.occurred_on.startsWith(month)),t=>Math.max(0,-cashAccts.reduce((n,a)=>n+txDelta(t,a.id),0)));
+  const endBars=months.map(m=>({label:shortMonth(m),value:balanceAt(`${m}-31`)}));
+  const stack=months.map(m=>{const sl=ownedTx.filter(t=>t.occurred_on.startsWith(m)&&t.kind==='expense');return {label:shortMonth(m),Kebutuhan:sum(sl.filter(t=>t.category==='Kebutuhan'),t=>t.amount),Keinginan:sum(sl.filter(t=>t.category==='Keinginan'),t=>t.amount),Tabungan:sum(sl.filter(t=>t.category==='Tabungan'),t=>t.amount),income:sum(ownedTx.filter(t=>t.occurred_on.startsWith(m)).filter(isRealIncome),t=>t.amount)}});
+  const bySub={};cur.filter(isSpending).forEach(t=>{const k=t.subcategory||t.category;bySub[k]=(bySub[k]||0)+Number(t.amount)});
+  const subs=Object.entries(bySub).map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
+  const donut=subs.length>6?[...subs.slice(0,5),{name:'Rest',value:sum(subs.slice(5),x=>x.value)}]:subs;
+  const subBudget=budgets.filter(b=>b.year===year&&b.subcategory&&b.category!=='Tabungan');
+  const costRows=[...new Set([...subBudget.map(b=>b.subcategory),...Object.keys(bySub)])].map(name=>({name,budget:sum(subBudget.filter(b=>b.subcategory===name),b=>b.monthly_amount),actual:bySub[name]||0})).filter(r=>r.budget||r.actual).sort((a,b)=>Math.max(b.actual,b.budget)-Math.max(a.actual,a.budget)).slice(0,8);
+  const pct=(a,b)=>b>0?a/b:NaN;
+  return <section className="report-sheet" aria-label="Monthly financial report">
+    <Band title={`Financial Report : ${monthLabel(month)}`}/>
+    <div className="rp-gauges">
+      <Gauge value={pct(saved,income)} label="Savings rate" sub="Saved ÷ income"/>
+      <Gauge value={pct(spend,income)} label="Spending ratio" sub="Spending ÷ income"/>
+      <Gauge value={pct(spend,planned)} label="Budget used" sub={planned?`of ${hidden?'•••':compact(planned)} plan`:'No budget set'}/>
+    </div>
+    <Band title="Cash position" tone="blue"/>
+    <div className="rp-grid">
+      <PillBox title="Cash Balance"><CashBox hidden={hidden} rows={[{label:'Rp',accent:true,value:number(balanceAt(`${month}-31`)).replace(/^Rp\s?/,'')},{label:'IN',value:number(inflow).replace(/^Rp\s?/,'')},{label:'OUT',value:number(outflow).replace(/^Rp\s?/,'')}]}/></PillBox>
+      <PillBox title="Cash at end of Month"><VBars data={endBars} hidden={hidden}/></PillBox>
+    </div>
+    <Band title="Spending analysis" tone="blue"/>
+    <div className="rp-grid">
+      <PillBox title="Monthly Spending"><StackedLine data={stack} hidden={hidden} series={[{key:'Kebutuhan',label:'Kebutuhan',color:RC.rust},{key:'Keinginan',label:'Keinginan',color:RC.brick},{key:'Tabungan',label:'Tabungan',color:RC.orange}]} line={{key:'income',label:'Income',color:RC.teal}}/></PillBox>
+      <PillBox title="Spending Breakdown"><DonutLabels data={donut} hidden={hidden} centerLabel={hidden?'':compact(spend)}/></PillBox>
+    </div>
+    <Band title="Budget vs actual" tone="blue"/>
+    <PillBox title="Breakdown of Costs" className="rp-wide"><BudgetBars rows={costRows} hidden={hidden}/></PillBox>
+  </section>;
+}
+function Dashboard({budgets=[],user,accounts,allAccounts,transactions,scope,month,hidden,setHidden,onPage,onNew,onEdit,onDelete,pendingCount,onReview,fetchTotals,dataVersion,onOpenCategory,onWeekly}) {
   const ids=useMemo(()=>new Set(accounts.map(x=>x.id)),[accounts]);
   // Transaksi milik rekening yang sedang ditampilkan (sumber) — dipakai untuk pemasukan/pengeluaran.
   const ownedTx=useMemo(()=>transactions.filter(t=>ids.has(t.account_id)),[transactions,ids]);
@@ -262,14 +306,12 @@ function Dashboard({user,accounts,allAccounts,transactions,scope,month,hidden,se
   const saving=sum(current.filter(isSaving),t=>t.amount);
   const balance=sum(accounts.filter(a=>a.kind!=='credit'),a=>getBalance(a,transactions));
   const ccDebt=sum(accounts.filter(a=>a.kind==='credit'),a=>Math.max(0,-getBalance(a,transactions)));
-  const graph=Array.from({length:6},(_,i)=>{const m=shiftMonth(month,i-5);const slice=ownedTx.filter(t=>t.occurred_on.startsWith(m));return {label:shortMonth(m),pemasukan:sum(slice.filter(isRealIncome),t=>t.amount),pengeluaran:sum(slice.filter(isSpending),t=>t.amount)}});
-  const categoryData=Object.entries(current.filter(isSpending).reduce((a,t)=>({...a,[t.subcategory||t.category]:(a[t.subcategory||t.category]||0)+Number(t.amount)}),{})).map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
   return <div className="page-stack"><div className="dashboard-head"><div><span className="eyebrow">MONEY OVERVIEW</span><h2>Our money, in order <span className="inline-heart">♡</span></h2><p>Manage today, for the big plans ahead.</p></div><button className="welcome-badge weekly-btn" onClick={onWeekly}><CalendarDays size={14}/> Weekly review</button></div>
     <section className="balance-hero"><div className="balance-orbit orbit-one"/><div className="balance-orbit orbit-two"/><div className="balance-hero-top"><span><Wallet size={18}/> Total balance you can see</span><IconButton label={hidden?'Show amounts':'Hide amounts'} onClick={()=>setHidden(!hidden)} className="hero-eye">{hidden?<EyeOff size={20}/>:<Eye size={20}/>}</IconButton></div><div className="balance-value">{formatValue(balance,hidden)}</div><div className="balance-hero-foot"><span><span className="glow-dot"/> {scopeText[scope]}</span><span>{ccDebt>0?`Credit card bill ${hidden?'•••':number(ccDebt)}`:'Current balance, all accounts'}</span></div></section>
     {pendingCount>0&&<button className="review-banner" onClick={onReview}><Mail size={18}/><span><strong>{pendingCount} Gmail transaction{pendingCount>1?'s':''}</strong> waiting for your review</span><ArrowRight size={16}/></button>}
     <div className="summary-grid four"><div className="summary-card"><div className="summary-icon income-icon"><ArrowDownLeft size={20}/></div><div><span>Income</span><strong>{formatValue(income,hidden)}</strong><small><TrendingUp size={13}/> Excl. transfers & asset sales</small></div></div><div className="summary-card"><div className="summary-icon expense-icon"><ArrowUpRight size={20}/></div><div><span>Spending</span><strong>{formatValue(expense,hidden)}</strong><small><TrendingDown size={13}/> Kebutuhan + Keinginan</small></div></div><div className="summary-card"><div className="summary-icon saving-icon"><PiggyBank size={20}/></div><div><span>Saved</span><strong>{formatValue(saving,hidden)}</strong><small><PiggyBank size={13}/> Tabungan category</small></div></div><div className="summary-card"><div className="summary-icon net-icon"><BarChart3 size={20}/></div><div><span>Left over</span><strong>{formatValue(income-expense-saving,hidden)}</strong><small>Income − spending − saved</small></div></div></div>
     {accounts.length===0&&<div className="start-card"><div><span className="eyebrow">START HERE</span><h3>No accounts yet.</h3><p>Add a shared or private account, then record your first transaction.</p></div><button className="btn btn-primary" onClick={()=>onNew('account')}><Plus size={17}/> Add account</button></div>}
-    <div className="insights-grid"><InsightGraph data={graph} hidden={hidden}/><CategoryGraph data={categoryData} expense={expense} hidden={hidden}/></div>
+    <FinancialReport accounts={accounts} transactions={transactions} ownedTx={ownedTx} budgets={budgets} month={month} hidden={hidden}/>
     <CategoryBreakdown transactions={transactions} ownedIds={ids} month={month} hidden={hidden} fetchTotals={fetchTotals} dataVersion={dataVersion} onOpen={onOpenCategory}/>
     <section className="surface recent-section"><div className="panel-heading"><div><span className="eyebrow">ACTIVITY</span><h3>Recent transactions</h3></div><button className="link-button view-all" onClick={()=>onPage('transactions')}>See all <ArrowRight size={16}/></button></div><TransactionList items={transactions.filter(t=>(ids.has(t.account_id)||ids.has(t.to_account_id))&&t.occurred_on.startsWith(month)).slice(0,5)} accounts={allAccounts||accounts} userId={user.id} hidden={hidden} onEdit={onEdit} onDelete={onDelete} emptyAction={accounts.length?()=>onNew('transaction'):undefined}/></section>
   </div>;
@@ -368,7 +410,7 @@ function AccountsPage({accounts,transactions,userId,hidden,onEdit,onDelete,onNew
 
 // ---------- Tabungan: catatan nilai aset ----------
 const DEFAULT_PLATFORMS=['Bibit','GORO','Stockbit','Gotrade'];
-const ASSET_COLORS={Bibit:'#f2643c',Gotrade:'#7b5ea7',GORO:'#f7a541',Stockbit:'#e0457b'};
+const ASSET_COLORS={Bibit:'#db6132',Gotrade:'#6fb4aa',GORO:'#e17e57',Stockbit:'#763216'};
 const assetColor=(p,i)=>ASSET_COLORS[p]||PALETTE[(i+3)%PALETTE.length];
 function assetSeries(assets){
   const platforms=[...new Set([...DEFAULT_PLATFORMS.filter(p=>assets.some(a=>a.platform===p)),...assets.map(a=>a.platform)])];
@@ -390,7 +432,7 @@ function AssetSection({assets,hidden,onUpdate,onEdit,onOpenInvest}){
     <div className="asset-sub">{change(total,prevTotal)}<span>{lastDate?`Last updated ${dateLabel(lastDate)}`:'No asset values recorded yet'}</span></div>
     {daysAgo!=null&&daysAgo>=7&&<button className="review-banner asset-reminder" onClick={()=>onUpdate()}><CalendarDays size={18}/><span><strong>Time for your weekly review.</strong> It's been {daysAgo} days since the last update.</span><ArrowRight size={16}/></button>}
     <div className="asset-cards">{shown.map((p,i)=>{const {cur,prev}=latest(p);return <button key={p} className="asset-card" onClick={()=>cur?onEdit(cur):onUpdate()}><span className="asset-dot" style={{background:assetColor(p,i)}}/><span className="asset-name">{p}</span><strong>{cur?formatValue(cur.value,hidden):'—'}</strong><small>{cur?change(Number(cur.value),prev?Number(prev.value):null)||dateLabel(cur.recorded_on):'Not set yet'}</small></button>})}</div>
-    {rows.length>=2?<div className="asset-chart">{hidden?<div className="masked-graph"><EyeOff size={24}/><span>Chart hidden</span></div>:<ResponsiveContainer width="100%" height="100%"><LineChart data={rows} margin={{top:10,right:8,left:-14,bottom:0}}><CartesianGrid stroke="#f1e7e4" strokeDasharray="3 5" vertical={false}/><XAxis dataKey="label" tickLine={false} axisLine={false} tick={{fill:'#9c8892',fontSize:11}} dy={8}/><YAxis tickLine={false} axisLine={false} tick={{fill:'#a9979f',fontSize:11}} tickFormatter={compact}/><Tooltip formatter={number} contentStyle={{borderRadius:14,border:'1px solid #f1e7e4'}}/><Legend iconType="circle" wrapperStyle={{fontSize:11}}/><Line type="monotone" dataKey="Total" stroke="#3a1846" strokeWidth={3} dot={{r:3}}/>{platforms.map((p,i)=><Line key={p} type="monotone" dataKey={p} stroke={assetColor(p,i)} strokeWidth={2} dot={false} connectNulls/>)}</LineChart></ResponsiveContainer>}</div>
+    {rows.length>=2?<div className="asset-chart">{hidden?<div className="masked-graph"><EyeOff size={24}/><span>Chart hidden</span></div>:<ResponsiveContainer width="100%" height="100%"><LineChart data={rows} margin={{top:10,right:8,left:-14,bottom:0}}><CartesianGrid stroke="#f3eed7" strokeDasharray="3 5" vertical={false}/><XAxis dataKey="label" tickLine={false} axisLine={false} tick={{fill:'#85969f',fontSize:11}} dy={8}/><YAxis tickLine={false} axisLine={false} tick={{fill:'#95a4ab',fontSize:11}} tickFormatter={compact}/><Tooltip formatter={number} contentStyle={{borderRadius:14,border:'1px solid #f3eed7'}}/><Legend iconType="circle" wrapperStyle={{fontSize:11}}/><Line type="monotone" dataKey="Total" stroke="#22343c" strokeWidth={3} dot={{r:3}}/>{platforms.map((p,i)=><Line key={p} type="monotone" dataKey={p} stroke={assetColor(p,i)} strokeWidth={2} dot={false} connectNulls/>)}</LineChart></ResponsiveContainer>}</div>
       :<p className="tiny-note">The growth chart appears after at least 2 updates (e.g. this week and next week).</p>}
   </section>;
 }
@@ -577,7 +619,7 @@ function FinanceShell({user,household,accounts,transactions,budgets,inbox,member
       <div className="mobile-page-title"><span>{current.label}</span><strong>{household.name}</strong></div>
       <main className="main-content" id="main-content">
         {page!=='family'&&page!=='invest'&&<div className="toolbar">{page!=='budget'?<div className="scope-control"><span className="toolbar-caption">Show</span><Segmented label="Account scope" value={scope} onChange={setScope} options={[{value:'all',label:'All'},{value:'shared',label:'Shared'},{value:'private',label:'Private'}]}/></div>:<div className="scope-control"><span className="toolbar-caption">Family budget</span></div>}{page!=='accounts'&&page!=='transactions'&&<MonthPicker value={month} onChange={setMonth}/>}</div>}
-        {page==='dashboard'&&<Dashboard user={user} accounts={filteredAccounts} allAccounts={accounts} transactions={transactions} scope={scope} month={month} hidden={hidden} setHidden={setHidden} onPage={setPage} onNew={newItem} onEdit={t=>setModal({type:'transaction',item:t})} onDelete={deleteTx} pendingCount={inbox.length} onReview={goReview} fetchTotals={fetchTotals} dataVersion={dataVersion} onWeekly={()=>setWeeklyOpen(true)} onOpenCategory={(group,sub)=>{setTxPreset({group,sub,month,at:Date.now()});setTxTab('history');setPage('transactions')}}/>}
+        {page==='dashboard'&&<Dashboard budgets={budgets} user={user} accounts={filteredAccounts} allAccounts={accounts} transactions={transactions} scope={scope} month={month} hidden={hidden} setHidden={setHidden} onPage={setPage} onNew={newItem} onEdit={t=>setModal({type:'transaction',item:t})} onDelete={deleteTx} pendingCount={inbox.length} onReview={goReview} fetchTotals={fetchTotals} dataVersion={dataVersion} onWeekly={()=>setWeeklyOpen(true)} onOpenCategory={(group,sub)=>{setTxPreset({group,sub,month,at:Date.now()});setTxTab('history');setPage('transactions')}}/>}
         {page==='transactions'&&<TransactionsPage items={scopedTransactions} month={month} accounts={accounts} userId={user.id} hidden={hidden} onEdit={t=>setModal({type:'transaction',item:t})} onDelete={deleteTx} onNew={newItem} inbox={inbox} onApproveInbox={it=>setModal({type:'transaction',draft:it})} onRejectInbox={rejectInbox} tab={txTab} setTab={setTxTab} preset={txPreset}/>}
         {page==='budget'&&<BudgetPage budgets={budgets} fetchTotals={fetchTotals} dataVersion={dataVersion} month={month} hidden={hidden} shareInfo={shareInfo} onEditBudget={b=>setModal({type:'budget',item:b})} onNewBudget={()=>setModal({type:'budget'})}/>}
         {page==='accounts'&&<AccountsPage accounts={filteredAccounts} transactions={transactions} userId={user.id} hidden={hidden} onEdit={a=>setModal({type:'account',item:a})} onDelete={deleteAccount} onNew={newItem} assets={assets} onUpdateAssets={()=>setModal({type:'assets'})} onEditAsset={a=>setModal({type:'assets',item:a})} goals={goals} budgets={budgets} onNewGoal={()=>setModal({type:'goal'})} onEditGoal={g=>setModal({type:'goal',item:g})} onDepositGoal={g=>setModal({type:'deposit',item:g})} onOpenInvest={()=>setPage('invest')}/>}
