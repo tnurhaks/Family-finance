@@ -257,6 +257,45 @@ function WeeklyReview({transactions,accounts,budgets,assets,inbox,hidden,onClose
 function monthBudget(budgets,year,groups){
   return sum(groups,g=>{const rows=budgets.filter(b=>b.year===year&&b.category===g);const head=rows.find(r=>!r.subcategory);return head?Number(head.monthly_amount):sum(rows.filter(r=>r.subcategory),r=>r.monthly_amount)});
 }
+const localToday=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+// Budget harian: budget Kebutuhan+Keinginan dibagi per hari, plus jatah aman untuk sisa bulan.
+function DailyBudget({ownedTx,budgets,month,hidden}){
+  const [y,m]=month.split('-').map(Number);const days=new Date(y,m,0).getDate();
+  const plan=monthBudget(budgets,y,['Kebutuhan','Keinginan']);
+  const today=localToday(),curMonth=today.slice(0,7);
+  const isCurrent=month===curMonth,isPast=month<curMonth;
+  const dayNo=isCurrent?Number(today.slice(8)):isPast?days:0;
+  const spendTx=ownedTx.filter(t=>t.occurred_on.startsWith(month)&&isSpending(t));
+  const perDay=Array.from({length:days},(_,i)=>sum(spendTx.filter(t=>Number(t.occurred_on.slice(8))===i+1),t=>t.amount));
+  const spent=sum(perDay),dailyPlan=plan/days;
+  const spentToday=isCurrent?perDay[dayNo-1]:0;
+  const spentBefore=isCurrent?spent-spentToday:spent;
+  const daysLeft=isCurrent?days-dayNo+1:0;
+  const allowance=isCurrent?Math.max(0,(plan-spentBefore)/daysLeft):0;
+  const avg=dayNo?spent/dayNo:0;
+  const leftAfterToday=isCurrent&&days-dayNo>0?Math.max(0,(plan-spent)/(days-dayNo)):0;
+  const usePct=allowance>0?spentToday/allowance:(spentToday>0?1.5:0);
+  const money=v=>hidden?'Rp •••':number(Math.round(v));
+  if(!plan) return <section className="surface daily-budget"><div className="panel-heading"><div><span className="eyebrow">DAILY BUDGET</span><h3>No Kebutuhan / Keinginan budget for {y}</h3></div></div></section>;
+  const maxBar=Math.max(dailyPlan*2,...perDay)||1;
+  return <section className="surface daily-budget" aria-label="Daily budget">
+    <div className="panel-heading"><div><span className="eyebrow">DAILY BUDGET · {monthLabel(month).toUpperCase()}</span><h3>{isCurrent?'Today you can spend':isPast?'How the month went':'Planned per day'}</h3></div></div>
+    {isCurrent?<div className="db-today">
+      <div className="db-big"><strong>{money(allowance)}</strong><span>{spentToday>0?`${money(spentToday)} used today · ${Math.round(usePct*100)}%`:'Nothing spent yet today'}</span></div>
+      <div className={`db-bar ${usePct>1?'over':usePct>.8?'warn':''}`}><i style={{width:`${Math.min(100,usePct*100)}%`}}/></div>
+      <p className="db-note">{allowance<dailyPlan*.9?`Below the normal ${money(dailyPlan)}/day because spending ran ahead earlier this month.`:allowance>dailyPlan*1.1?`Above the normal ${money(dailyPlan)}/day — you've been under budget so far.`:`On track with the normal ${money(dailyPlan)}/day.`}</p>
+    </div>:<div className="db-today"><div className="db-big"><strong>{money(isPast?avg:dailyPlan)}</strong><span>{isPast?`average per day vs plan ${money(dailyPlan)}`:`per day from a ${money(plan)} month`}</span></div></div>}
+    <div className="db-stats">
+      <div><span>Daily plan</span><strong>{money(dailyPlan)}</strong><small>{money(plan)} ÷ {days} days</small></div>
+      <div><span>Average so far</span><strong className={avg>dailyPlan?'bad':'good'}>{dayNo?money(avg):'—'}</strong><small>{dayNo?`${money(spent)} over ${dayNo} day${dayNo>1?'s':''}`:'Month not started'}</small></div>
+      <div><span>{isCurrent?'Left per day after today':'Left this month'}</span><strong className={plan-spent<0?'bad':''}>{isCurrent?(days-dayNo>0?money(leftAfterToday):'—'):money(plan-spent)}</strong><small>{money(Math.max(0,plan-spent))} left · {isCurrent?`${days-dayNo} day${days-dayNo===1?'':'s'} to go`:`${Math.round(plan?spent/plan*100:0)}% used`}</small></div>
+    </div>
+    {!hidden&&<div className="db-days" aria-label="Spending per day">
+      <span className="db-plan-line" style={{bottom:`${dailyPlan/maxBar*100}%`}}><em>plan</em></span>
+      {perDay.map((v,i)=><span key={i} className={`db-day ${i+1===dayNo&&isCurrent?'today':''} ${v>dailyPlan?'over':''} ${dayNo&&i+1>dayNo?'future':''}`} title={`${i+1} ${shortMonth(month)}: ${number(v)}`}><i style={{height:`${Math.min(100,v/maxBar*100)}%`}}/></span>)}
+    </div>}
+  </section>;
+}
 function FinancialReport({accounts,transactions,ownedTx,budgets=[],month,hidden}){
   const year=Number(month.slice(0,4));
   const cur=ownedTx.filter(t=>t.occurred_on.startsWith(month));
@@ -306,11 +345,15 @@ function Dashboard({budgets=[],user,accounts,allAccounts,transactions,scope,mont
   const saving=sum(current.filter(isSaving),t=>t.amount);
   const balance=sum(accounts.filter(a=>a.kind!=='credit'),a=>getBalance(a,transactions));
   const ccDebt=sum(accounts.filter(a=>a.kind==='credit'),a=>Math.max(0,-getBalance(a,transactions)));
+  // Saldo bersih = semua saldo rekening dikurangi tagihan CC Mandiri (dibayar dari saldo sendiri).
+  const mandiriDebt=sum(accounts.filter(a=>a.kind==='credit'&&/mandiri|skyz/i.test(a.name)),a=>Math.max(0,-getBalance(a,transactions)));
+  const netBalance=balance-mandiriDebt;
   return <div className="page-stack"><div className="dashboard-head"><div><span className="eyebrow">MONEY OVERVIEW</span><h2>Our money, in order <span className="inline-heart">♡</span></h2><p>Manage today, for the big plans ahead.</p></div><button className="welcome-badge weekly-btn" onClick={onWeekly}><CalendarDays size={14}/> Weekly review</button></div>
-    <section className="balance-hero"><div className="balance-orbit orbit-one"/><div className="balance-orbit orbit-two"/><div className="balance-hero-top"><span><Wallet size={18}/> Total balance you can see</span><IconButton label={hidden?'Show amounts':'Hide amounts'} onClick={()=>setHidden(!hidden)} className="hero-eye">{hidden?<EyeOff size={20}/>:<Eye size={20}/>}</IconButton></div><div className="balance-value">{formatValue(balance,hidden)}</div><div className="balance-hero-foot"><span><span className="glow-dot"/> {scopeText[scope]}</span><span>{ccDebt>0?`Credit card bill ${hidden?'•••':number(ccDebt)}`:'Current balance, all accounts'}</span></div></section>
+    <section className="balance-hero"><div className="balance-orbit orbit-one"/><div className="balance-orbit orbit-two"/><div className="balance-hero-top"><span><Wallet size={18}/> Balance after CC Mandiri bill</span><IconButton label={hidden?'Show amounts':'Hide amounts'} onClick={()=>setHidden(!hidden)} className="hero-eye">{hidden?<EyeOff size={20}/>:<Eye size={20}/>}</IconButton></div><div className="balance-value">{formatValue(netBalance,hidden)}</div><p className="balance-calc">{hidden?'All balances − CC Mandiri bill':`All balances ${number(balance)} − CC Mandiri ${number(mandiriDebt)}`}</p><div className="balance-hero-foot"><span><span className="glow-dot"/> {scopeText[scope]}</span><span>{`Total credit card bill ${hidden?'•••':number(ccDebt)}`}</span></div></section>
     {pendingCount>0&&<button className="review-banner" onClick={onReview}><Mail size={18}/><span><strong>{pendingCount} Gmail transaction{pendingCount>1?'s':''}</strong> waiting for your review</span><ArrowRight size={16}/></button>}
     <div className="summary-grid four"><div className="summary-card"><div className="summary-icon income-icon"><ArrowDownLeft size={20}/></div><div><span>Income</span><strong>{formatValue(income,hidden)}</strong><small><TrendingUp size={13}/> Excl. transfers & asset sales</small></div></div><div className="summary-card"><div className="summary-icon expense-icon"><ArrowUpRight size={20}/></div><div><span>Spending</span><strong>{formatValue(expense,hidden)}</strong><small><TrendingDown size={13}/> Kebutuhan + Keinginan</small></div></div><div className="summary-card"><div className="summary-icon saving-icon"><PiggyBank size={20}/></div><div><span>Saved</span><strong>{formatValue(saving,hidden)}</strong><small><PiggyBank size={13}/> Tabungan category</small></div></div><div className="summary-card"><div className="summary-icon net-icon"><BarChart3 size={20}/></div><div><span>Left over</span><strong>{formatValue(income-expense-saving,hidden)}</strong><small>Income − spending − saved</small></div></div></div>
     {accounts.length===0&&<div className="start-card"><div><span className="eyebrow">START HERE</span><h3>No accounts yet.</h3><p>Add a shared or private account, then record your first transaction.</p></div><button className="btn btn-primary" onClick={()=>onNew('account')}><Plus size={17}/> Add account</button></div>}
+    <DailyBudget ownedTx={ownedTx} budgets={budgets} month={month} hidden={hidden}/>
     <FinancialReport accounts={accounts} transactions={transactions} ownedTx={ownedTx} budgets={budgets} month={month} hidden={hidden}/>
     <CategoryBreakdown transactions={transactions} ownedIds={ids} month={month} hidden={hidden} fetchTotals={fetchTotals} dataVersion={dataVersion} onOpen={onOpenCategory}/>
     <section className="surface recent-section"><div className="panel-heading"><div><span className="eyebrow">ACTIVITY</span><h3>Recent transactions</h3></div><button className="link-button view-all" onClick={()=>onPage('transactions')}>See all <ArrowRight size={16}/></button></div><TransactionList items={transactions.filter(t=>(ids.has(t.account_id)||ids.has(t.to_account_id))&&t.occurred_on.startsWith(month)).slice(0,5)} accounts={allAccounts||accounts} userId={user.id} hidden={hidden} onEdit={onEdit} onDelete={onDelete} emptyAction={accounts.length?()=>onNew('transaction'):undefined}/></section>
