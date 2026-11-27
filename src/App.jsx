@@ -33,7 +33,13 @@ const shortMonth = s => new Date(`${s}-01T12:00:00`).toLocaleDateString('en-GB',
 const shiftMonth = (s, offset) => { const [y,m] = s.split('-').map(Number); const d=new Date(y,m-1+offset,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
 // Efek satu transaksi ke saldo satu rekening (transfer: keluar dari sumber, masuk ke tujuan).
 const txDelta = (t, accountId) => (t.account_id===accountId ? (t.kind==='income'?1:-1)*Number(t.amount) : 0) + (t.kind==='transfer'&&t.to_account_id===accountId ? Number(t.amount) : 0);
-const getBalance = (account, txs) => Number(account.opening_balance) + txs.reduce((n,t)=>n+txDelta(t,account.id),0);
+// Rekening valas (USD/SGD) disimpan dalam mata uang aslinya; nilai Rupiah = saldo × kurs harian.
+const FX = { IDR: 1 };
+const fxRate = c => (!c || c === 'IDR') ? 1 : (FX[c] || 0);
+const setFxFromPrices = prices => (prices || []).forEach(p => { const m = /^FX:([A-Z]{3})IDR$/.exec(p.key || ''); if (m && Number(p.price) > 0) FX[m[1]] = Number(p.price); });
+const getNativeBalance = (account, txs) => Number(account.opening_balance) + txs.reduce((n,t)=>n+txDelta(t,account.id),0);
+const getBalance = (account, txs) => getNativeBalance(account, txs) * fxRate(account.currency);
+const fmtFx = (v, c) => `${c} ${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(v)}`;
 const formatValue = (value, hidden) => hidden ? 'Rp •••••••' : number(value);
 const scopeText = {all:'All access',shared:'Shared',private:'My private'};
 const navItems = [{id:'dashboard',label:'Home',Icon:Home},{id:'transactions',label:'Transactions',Icon:ReceiptText},{id:'budget',label:'Budget',Icon:Target},{id:'accounts',label:'Accounts',Icon:Wallet},{id:'invest',label:'Invest',Icon:TrendingUp},{id:'family',label:'Family',Icon:Users}];
@@ -80,12 +86,12 @@ function AccountSheet({existing,currentBalance,onClose,onSave}) {
   const isCredit0=existing?.kind==='credit';
   const [name,setName]=useState(existing?.name||''),[visibility,setVisibility]=useState(existing?.visibility||'private'),[kind,setKind]=useState(existing?.kind||'bank'),
     [opening,setOpening]=useState(String(existing&&!isCredit0?Math.round((currentBalance??0)*100)/100:'0')),
-    [limit,setLimit]=useState(String(existing?.credit_limit??'')),
+    [limit,setLimit]=useState(String(existing?.credit_limit??'')),[currency,setCurrency]=useState(existing?.currency||'IDR'),
     [available,setAvailable]=useState(String(existing&&isCredit0?Math.round((Number(existing.credit_limit||0)+(currentBalance??0))*100)/100:'')),
     [saving,setSaving]=useState(false),[error,setError]=useState('');
   const credit=kind==='credit';
   const used=credit&&limit!==''&&available!==''?Number(limit)-Number(available):0;
-  async function submit(e){e.preventDefault();setError('');if(credit&&Number(available)>Number(limit)){setError('Available limit can\'t be higher than the total limit.');return}setSaving(true);try{await onSave({name:name.trim(),visibility,kind,credit_limit:credit?Number(limit):null,current_balance:credit?-(Number(limit)-Number(available)):Number(opening)},existing);onClose()}catch(err){setError(err.message||'Couldn\'t save the account.')}finally{setSaving(false)}}
+  async function submit(e){e.preventDefault();setError('');if(credit&&Number(available)>Number(limit)){setError('Available limit can\'t be higher than the total limit.');return}setSaving(true);try{await onSave({name:name.trim(),visibility,kind,currency:credit?'IDR':currency,credit_limit:credit?Number(limit):null,current_balance:credit?-(Number(limit)-Number(available)):Number(opening)},existing);onClose()}catch(err){setError(err.message||'Couldn\'t save the account.')}finally{setSaving(false)}}
   return <Sheet title={existing?'Edit account':'New account'} onClose={onClose}><form className="form sheet-form" onSubmit={submit}>
     <Segmented label="Account type" value={kind} onChange={setKind} options={[{value:'bank',label:'Bank / e-wallet'},{value:'credit',label:'Credit card'}]}/>
     <label>{credit?'Card name':'Account name'}<input autoFocus required maxLength={80} value={name} onChange={e=>setName(e.target.value)} placeholder={credit?'e.g. BCA Credit Card':'e.g. BCA'}/></label>
@@ -95,7 +101,9 @@ function AccountSheet({existing,currentBalance,onClose,onSave}) {
       <label>Available limit now (Rp)<input type="number" inputMode="numeric" min="0" step="0.01" required value={available} onChange={e=>setAvailable(e.target.value)} placeholder="Check your banking app"/></label>
       {limit!==''&&available!==''&&<div className="context-note"><CreditCard size={16}/> Used {number(Math.max(0,used))} of {number(limit)}. Spending on this card lowers the available limit; paying the bill (a transfer to the card) restores it.</div>}
     </>:<>
-      <label>Current balance (Rp)<input type="number" inputMode="decimal" step="0.01" required value={opening} onChange={e=>setOpening(e.target.value)}/></label>
+      <label>Currency<select value={currency} onChange={e=>setCurrency(e.target.value)}><option value="IDR">IDR — Rupiah</option><option value="USD">USD — US dollar</option><option value="SGD">SGD — Singapore dollar</option></select></label>
+      <label>Current balance ({currency==='IDR'?'Rp':currency})<input type="number" inputMode="decimal" step="0.01" required value={opening} onChange={e=>setOpening(e.target.value)}/></label>
+      {currency!=='IDR'&&<p className="field-help"><Wallet size={15}/> Shown in Rupiah using the daily {currency}/IDR rate{fxRate(currency)?` (now ${number(fxRate(currency))})`:''}.</p>}
       <p className="field-help"><Wallet size={15}/> Enter today's balance from your banking app. This is exactly what will show — new transactions after this will move it up or down.</p>
     </>}
     {error&&<div className="feedback error" role="alert">{error}</div>}
@@ -208,7 +216,24 @@ const isoDay=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${
 const addDays=(iso,n)=>{const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+n);return isoDay(d)};
 const daysBetween=(a,b)=>Math.round((new Date(`${b}T12:00:00`)-new Date(`${a}T12:00:00`))/864e5);
 function periodStats(txs,from,to){const w=txs.filter(t=>t.occurred_on>=from&&t.occurred_on<=to);return {list:w,income:sum(w.filter(isRealIncome),t=>t.amount),spend:sum(w.filter(isSpending),t=>t.amount),saved:sum(w.filter(isSaving),t=>t.amount)}}
-function WeeklyReview({transactions,accounts,budgets,assets,inbox,hidden,onClose,onLater,onDone,onUpdateAssets,onReviewGmail}){
+// Cocokkan saldo di app dengan saldo asli di aplikasi bank; selisih diperbaiki lewat saldo awal rekening.
+function BalanceCheck({accounts,transactions,hidden,onFix}){
+  const [vals,setVals]=useState({}),[busy,setBusy]=useState(false),[done,setDone]=useState('');
+  const rows=accounts.filter(a=>!a.currency||a.currency==='IDR').map(a=>{const credit=a.kind==='credit';const app=credit?Math.max(0,-getBalance(a,transactions)):getBalance(a,transactions);const raw=vals[a.id];const typed=raw==null||raw===''?null:Number(String(raw).replace(/[^\d-]/g,''));const diff=typed==null||!isFinite(typed)?null:Math.round((typed-app)*100)/100;return {a,credit,app,typed,diff}});
+  const off=rows.filter(r=>r.diff);
+  async function fix(){setBusy(true);setDone('');try{for(const r of off)await onFix(r.a,r.credit?-r.typed:r.typed);setDone(`${off.length} account${off.length>1?'s':''} corrected.`);setVals({})}finally{setBusy(false)}}
+  return <section className="weekly-block balance-check"><h4>Balance check</h4>
+    <p className="weekly-note">Type the balance from each bank app (for credit cards, the current bill). Leave blank to skip.</p>
+    {rows.map(({a,credit,app,diff})=><div className="bc-row" key={a.id}>
+      <span className="bc-name">{credit?<CreditCard size={14}/>:<Wallet size={14}/>} {a.name}<em>{credit?'Bill in app':'In app'}: {hidden?'•••':number(app)}</em></span>
+      <input inputMode="numeric" placeholder={credit?'Bill now':'Actual'} value={vals[a.id]??''} onChange={e=>setVals(v=>({...v,[a.id]:e.target.value}))} aria-label={`Actual ${credit?'bill':'balance'} for ${a.name}`}/>
+      {diff==null?<span className="bc-status"/>:diff===0?<span className="bc-status ok">✓ match</span>:<span className="bc-status off">{diff>0?"+":"−"}{compact(Math.abs(diff))}</span>}
+    </div>)}
+    {off.length>0&&<button className="btn btn-primary full" disabled={busy} onClick={fix}>{busy?'Saving…':`Correct ${off.length} account${off.length>1?'s':''} to match`}</button>}
+    {done&&<p className="weekly-note">{done}</p>}
+  </section>;
+}
+function WeeklyReview({transactions,accounts,budgets,assets,inbox,hidden,onClose,onLater,onDone,onUpdateAssets,onReviewGmail,onFixBalance}){
   const today=dateToday(), from=addDays(today,-6), prevFrom=addDays(today,-13), prevTo=addDays(today,-7);
   const ids=new Set(accounts.map(a=>a.id));
   const visible=transactions.filter(t=>ids.has(t.account_id));
@@ -245,6 +270,7 @@ function WeeklyReview({transactions,accounts,budgets,assets,inbox,hidden,onClose
       {cards.map(({a,limit,avail,used})=><div className="weekly-row" key={a.id}><span><CreditCard size={14}/> {a.name} <em>· {Math.round(used*100)}% of {hidden?'•••':compact(limit)} used</em></span><strong>{money(avail)} <em>avail.</em></strong></div>)}
       {!banks.length&&!cards.length&&<p className="weekly-note">No accounts yet.</p>}
     </section>
+    {onFixBalance&&accounts.length>0&&<BalanceCheck accounts={accounts} transactions={transactions} hidden={hidden} onFix={onFixBalance}/>}
     <section className="weekly-block"><h4>Savings & investments</h4>
       {lastAsset?<div className="weekly-row"><span><PiggyBank size={14}/> Total assets <em>· updated {dateLabel(lastAsset.date)}</em></span><strong>{money(lastAsset.Total)}</strong></div>:<p className="weekly-note">No asset values yet.</p>}
       {(assetDays==null||assetDays>=7)&&<button className="btn btn-soft full" onClick={onUpdateAssets}><RefreshCw size={15}/> Update investment values</button>}
@@ -304,7 +330,7 @@ function FinancialReport({accounts,transactions,ownedTx,budgets=[],month,hidden}
   const planned=monthBudget(budgets,year,['Kebutuhan','Keinginan']);
   const cashAccts=accounts.filter(a=>a.kind!=='credit');
   const months=Array.from({length:6},(_,i)=>shiftMonth(month,i-5));
-  const balanceAt=end=>sum(cashAccts,a=>Number(a.opening_balance)+transactions.filter(t=>t.occurred_on<=end).reduce((n,t)=>n+txDelta(t,a.id),0));
+  const balanceAt=end=>sum(cashAccts,a=>(Number(a.opening_balance)+transactions.filter(t=>t.occurred_on<=end).reduce((n,t)=>n+txDelta(t,a.id),0))*fxRate(a.currency));
   const inflow=sum(transactions.filter(t=>t.occurred_on.startsWith(month)),t=>Math.max(0,cashAccts.reduce((n,a)=>n+txDelta(t,a.id),0)));
   const outflow=sum(transactions.filter(t=>t.occurred_on.startsWith(month)),t=>Math.max(0,-cashAccts.reduce((n,a)=>n+txDelta(t,a.id),0)));
   const endBars=months.map(m=>({label:shortMonth(m),value:balanceAt(`${m}-31`)}));
@@ -439,7 +465,7 @@ function AccountTile({a,balance,userId,hidden,onEdit,onDelete}){
   const credit=a.kind==='credit', limit=Number(a.credit_limit||0), avail=limit+balance, usedPct=limit>0?Math.min(1,Math.max(0,(limit-avail)/limit)):0;
   return <article className={`account-tile ${credit?'credit-tile':''}`}><div className="account-tile-top"><span className="account-symbol">{credit?<CreditCard size={21}/>:<Wallet size={21}/>}</span><span className={`privacy-tag ${a.visibility==='shared'?'shared':'private'}`}>{a.visibility==='shared'?<Users size={12}/>:<LockKeyhole size={12}/>} {a.visibility==='shared'?'Shared':'Private'}</span></div><h4>{a.name}</h4>
     {credit?<><p>Available limit</p><strong className={avail<0?'is-over':''}>{formatValue(avail,hidden)}</strong><div className="credit-bar"><i style={{width:`${usedPct*100}%`}}/></div><p className="credit-meta">Limit {hidden?'•••':number(limit)} · used {hidden?'•••':number(Math.max(0,limit-avail))}</p></>
-      :<><p>Current balance</p><strong>{formatValue(balance,hidden)}</strong></>}
+      :<><p>Current balance</p><strong>{formatValue(balance,hidden)}</strong>{a.currency&&a.currency!=='IDR'&&<p className="fx-meta">{hidden?'•••':fmtFx(balance/(fxRate(a.currency)||1),a.currency)} · 1 {a.currency} = {hidden?'•••':number(fxRate(a.currency))}</p>}</>}
     <div className="account-tile-bottom"><small>{a.owner_id===userId?'Added by you':'Added by your partner'}</small>{a.owner_id===userId&&<div><IconButton label={`Edit account ${a.name}`} onClick={()=>onEdit(a)}><Pencil size={16}/></IconButton><IconButton label={`Delete account ${a.name}`} onClick={()=>onDelete(a)}><Trash2 size={16}/></IconButton></div>}</div></article>;
 }
 function AccountsPage({pockets,accounts,transactions,userId,hidden,onEdit,onDelete,onNew,assets,onUpdateAssets,onEditAsset,goals,budgets,onNewGoal,onEditGoal,onDepositGoal,onOpenInvest}){
@@ -636,6 +662,7 @@ function FamilyPage({household,user,members,me,isDemo,onCopy,onSignOut,onExitDem
 }
 
 function FinanceShell({user,household,accounts,transactions,budgets,inbox,members,me,fetchTotals,dataVersion,gmail,assets=[],onSaveAssets,onDeleteAsset,onMarkReviewed,goals=[],onSaveGoal,onDeleteGoal,onSetGoalSaved,holdings=[],prices=[],portfolioHistory=[],onSaveHolding,onDeleteHolding,onRefreshPrices,searchFund,onSaveAccount,onSaveTransaction,onDeleteAccount,onDeleteTransaction,onSaveBudget,onDeleteBudget,onRejectInbox,onToggleShare,onRefresh,onSignOut,isDemo=false,sync='online',busy=false}) {
+  setFxFromPrices(prices);
   const pockets=useMemo(()=>pocketValues(holdings,prices),[holdings,prices]);
   const [page,setPage]=useState('dashboard'),[txTab,setTxTab]=useState('history'),[txPreset,setTxPreset]=useState(null),[weeklyOpen,setWeeklyOpen]=useState(false),[scope,setScope]=useState('all'),[month,setMonth]=useState(monthNow()),[hidden,setHidden]=useState(false),[modal,setModal]=useState(null),[toast,setToast]=useState(null),[isOnline,setIsOnline]=useState(typeof navigator!=='undefined'?navigator.onLine:true);
   useEffect(()=>{const yes=()=>setIsOnline(true),no=()=>setIsOnline(false);window.addEventListener('online',yes);window.addEventListener('offline',no);return()=>{window.removeEventListener('online',yes);window.removeEventListener('offline',no)}},[]);
@@ -686,13 +713,13 @@ function FinanceShell({user,household,accounts,transactions,budgets,inbox,member
     </div>
     <nav className="bottom-nav" aria-label="Bottom navigation">{BOTTOM_NAV.slice(0,2).map(navButton)}<button className="bottom-add" aria-label="Add transaction" onClick={()=>newItem('transaction')}><Plus size={29}/></button>{BOTTOM_NAV.slice(2).map(navButton)}</nav>
     <Notice notice={toast} onClose={()=>setToast(null)}/>
-    {modal?.type==='account'&&<AccountSheet existing={modal.item} currentBalance={modal.item?getBalance(modal.item,transactions):0} onClose={()=>setModal(null)} onSave={saveAccount}/>}
+    {modal?.type==='account'&&<AccountSheet existing={modal.item} currentBalance={modal.item?getNativeBalance(modal.item,transactions):0} onClose={()=>setModal(null)} onSave={saveAccount}/>}
     {modal?.type==='transaction'&&<TransactionSheet existing={modal.item} draft={modal.draft} accounts={accounts} onClose={()=>setModal(null)} onSave={(payload,existing)=>saveTransaction(payload,existing,modal.draft)}/>}
     {modal?.type==='assets'&&<AssetUpdateSheet assets={assets} existing={modal.item} onClose={()=>setModal(null)} onSave={rows=>guarded(()=>onSaveAssets(rows,modal.item),'Asset values saved')} onDelete={a=>guarded(()=>onDeleteAsset(a),'Asset entry deleted')}/>}
     {modal?.type==='goal'&&<GoalSheet existing={modal.item} assets={assets} pockets={pockets} goals={goals} onClose={()=>setModal(null)} onSave={(payload,existing)=>guarded(()=>onSaveGoal(payload,existing),existing?'Goal updated':'Goal added')} onDelete={g=>guarded(()=>onDeleteGoal(g),'Goal deleted')}/>}
     {modal?.type==='holding'&&<HoldingSheet Sheet={Sheet} existing={modal.item} searchFund={searchFund} onClose={()=>setModal(null)} onSave={(payload,existing)=>guarded(()=>onSaveHolding(payload,existing),existing?'Holding updated':'Holding added')} onDelete={h=>guarded(()=>onDeleteHolding(h),'Holding deleted')}/>}
     {modal?.type==='deposit'&&<DepositSheet goal={modal.item} onClose={()=>setModal(null)} onSave={(g,v)=>guarded(()=>onSetGoalSaved(g,v),'Goal progress updated')}/>}
-    {weeklyOpen&&<WeeklyReview transactions={transactions} accounts={accounts} budgets={budgets} assets={assets} inbox={inbox} hidden={hidden} onClose={()=>setWeeklyOpen(false)} onLater={laterWeekly} onDone={doneWeekly} onUpdateAssets={()=>{setWeeklyOpen(false);setPage('accounts');setModal({type:'assets'})}} onReviewGmail={()=>{setWeeklyOpen(false);goReview()}}/>}
+    {weeklyOpen&&<WeeklyReview transactions={transactions} accounts={accounts} budgets={budgets} assets={assets} inbox={inbox} hidden={hidden} onClose={()=>setWeeklyOpen(false)} onLater={laterWeekly} onDone={doneWeekly} onUpdateAssets={()=>{setWeeklyOpen(false);setPage('accounts');setModal({type:'assets'})}} onReviewGmail={()=>{setWeeklyOpen(false);goReview()}} onFixBalance={(a,current_balance)=>saveAccount({current_balance},a)}/>}
     {modal?.type==='budget'&&<BudgetSheet existing={modal.item} year={Number(month.slice(0,4))} onClose={()=>setModal(null)} onSave={saveBudget} onDelete={deleteBudget}/>}
   </div>;
 }
