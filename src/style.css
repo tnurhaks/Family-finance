@@ -825,3 +825,13 @@ h1, h2, h3, h4 { color:#262626; }
 .surface.invest-hero .invest-hero-side .btn-soft { background:#7a1f2b !important; color:#fffcf2 !important; border-color:#7a1f2b !important; }
 .surface.invest-hero .delta.flat { background:#f1e6d6 !important; color:#7a1f2b !important; }
 .pocket-tag { font-style:normal; font-size:10px; font-weight:800; letter-spacing:.04em; color:#7a1f2b; background:#f1e2d8; border-radius:99px; padding:2px 7px; margin-left:6px; vertical-align:middle; }
+
+/* v14 Weekly balance check */
+.balance-check { display:grid; gap:8px; }
+.bc-row { display:grid; grid-template-columns:1fr 120px 74px; align-items:center; gap:8px; }
+.bc-name { display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; font-size:13px; font-weight:650; color:#262626; min-width:0; }
+.bc-name em { flex-basis:100%; font-style:normal; font-weight:500; font-size:11px; color:#6b7d9a; }
+.bc-row input { width:100%; padding:8px 10px; border:1px solid #d9cfa8; border-radius:10px; background:#fffcf2; font:inherit; font-size:13px; text-align:right; }
+.bc-status { font-size:11.5px; font-weight:750; text-align:right; overflow-wrap:anywhere; }
+.bc-status.ok { color:#3f7f78; } .bc-status.off { color:#a8462a; }
+.fx-meta { font-size:11px; color:#6b7d9a; margin-top:2px; }
